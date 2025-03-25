@@ -24,8 +24,38 @@ while getopts "g:c:b:p:v:s:n:u:" opt; do
 done
 
 # Check if all required parameters are provided
-if [[ -z "${RESOURCE_GROUP:-}" || -z "${CLUSTER_NAME:-}" || -z "${BICEP_TEMPLATE_PATH:-}" || -z "${ADMIN_PASSWORD:-}" || -z "${VNET_NAME:-}" || -z "${SUBNET_NAME:-}" || -z "${NODE_RESOURCE_GROUP:-}" || -z "${SUBSCRIPTION_ID:-}" ]]; then
-    echo "Error: Missing required parameters."
+missing_params=()
+
+if [[ -z "${RESOURCE_GROUP:-}" ]]; then
+    missing_params+=("-g <resource-group>")
+fi
+if [[ -z "${CLUSTER_NAME:-}" ]]; then
+    missing_params+=("-c <cluster-name>")
+fi
+if [[ -z "${BICEP_TEMPLATE_PATH:-}" ]]; then
+    missing_params+=("-b <bicep-template-path>")
+fi
+if [[ -z "${ADMIN_PASSWORD:-}" ]]; then
+    missing_params+=("-p <admin-password>")
+fi
+if [[ -z "${VNET_NAME:-}" ]]; then
+    missing_params+=("-v <vnet-name>")
+fi
+if [[ -z "${SUBNET_NAME:-}" ]]; then
+    missing_params+=("-s <subnet-name>")
+fi
+if [[ -z "${NODE_RESOURCE_GROUP:-}" ]]; then
+    missing_params+=("-n <node-resource-group>")
+fi
+if [[ -z "${SUBSCRIPTION_ID:-}" ]]; then
+    missing_params+=("-u <subscription-id>")
+fi
+
+if [[ ${#missing_params[@]} -gt 0 ]]; then
+    echo "Error: Missing required parameters:"
+    for param in "${missing_params[@]}"; do
+        echo "  $param"
+    done
     usage
 fi
 
