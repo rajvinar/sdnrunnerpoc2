@@ -50,7 +50,7 @@ az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$CLUSTER_NAME"
 
 # Retrieve the Object ID of the managed identity
 echo "Retrieving Object ID of the managed identity..."
-OID=$(az identity show --ids "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/helm-script-msi-bdyaus4g6ycio" --query principalId -o tsv)
+OID=$(az identity show --ids "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/helm-script-msi" --query principalId -o tsv)
 
 # Apply the Kubernetes role using the managed identity
 echo "Applying Kubernetes role for the managed identity..."
