@@ -11,8 +11,8 @@ usage() {
 # Default values for variables
 DEFAULT_RESOURCE_GROUP="default-resource-group"
 DEFAULT_CLUSTER_NAME="aks"
-DEFAULT_BICEP_TEMPLATE_PATH=".pipelines/singularity-runner/byon/linux.bicep"
-DEFAULT_ADMIN_PASSWORD=$(az keyvault secret show --vault-name "vmsspwd" --name "biceppwd" --query value -o tsv)
+DEFAULT_BICEP_TEMPLATE_PATH="linux.bicep"
+DEFAULT_ADMIN_PASSWORD=""
 DEFAULT_VNET_NAME="default-vnet-name"
 DEFAULT_SUBNET_NAME="default-subnet-name"
 DEFAULT_NODE_RESOURCE_GROUP="default-node-resource-group"
