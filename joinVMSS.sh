@@ -4,22 +4,12 @@ set -euxo pipefail
 
 # Usage function to display help
 usage() {
-    echo "Usage: $0 [-g <resource-group>] [-c <cluster-name>] [-b <bicep-template-path>] [-p <admin-password>] [-v <vnet-name>] [-s <subnet-name>] [-n <node-resource-group>]"
+    echo "Usage: $0 -g <resource-group> -c <cluster-name> -b <bicep-template-path> -p <admin-password> -v <vnet-name> -s <subnet-name> -n <node-resource-group> -u <subscription-id>"
     exit 1
 }
 
-# Default values for variables
-DEFAULT_RESOURCE_GROUP="default-resource-group"
-DEFAULT_CLUSTER_NAME="aks"
-DEFAULT_BICEP_TEMPLATE_PATH="linux.bicep"
-DEFAULT_ADMIN_PASSWORD=""
-DEFAULT_VNET_NAME="default-vnet-name"
-DEFAULT_SUBNET_NAME="default-subnet-name"
-DEFAULT_NODE_RESOURCE_GROUP="default-node-resource-group"
-DEFAULT_SUBSCRIPTION_ID="9b8218f9-902a-4d20-a65c-e98acec5362f"
-
 # Parse command-line arguments
-while getopts "g:c:b:p:v:s:n:" opt; do
+while getopts "g:c:b:p:v:s:n:u:" opt; do
     case "$opt" in
         g) RESOURCE_GROUP="$OPTARG" ;;
         c) CLUSTER_NAME="$OPTARG" ;;
@@ -28,20 +18,17 @@ while getopts "g:c:b:p:v:s:n:" opt; do
         v) VNET_NAME="$OPTARG" ;;
         s) SUBNET_NAME="$OPTARG" ;;
         n) NODE_RESOURCE_GROUP="$OPTARG" ;;
-        s) SUBSCRIPTION_ID="$OPTARG" ;;
+        u) SUBSCRIPTION_ID="$OPTARG" ;;
         *) usage ;;
     esac
 done
 
-# Assign default values if variables are not set
-RESOURCE_GROUP="${RESOURCE_GROUP:-$DEFAULT_RESOURCE_GROUP}"
-CLUSTER_NAME="${CLUSTER_NAME:-$DEFAULT_CLUSTER_NAME}"
-BICEP_TEMPLATE_PATH="${BICEP_TEMPLATE_PATH:-$DEFAULT_BICEP_TEMPLATE_PATH}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-$DEFAULT_ADMIN_PASSWORD}"
-VNET_NAME="${VNET_NAME:-$DEFAULT_VNET_NAME}"
-SUBNET_NAME="${SUBNET_NAME:-$DEFAULT_SUBNET_NAME}"
-NODE_RESOURCE_GROUP="${NODE_RESOURCE_GROUP:-$DEFAULT_NODE_RESOURCE_GROUP}"
-SUBSCRIPTION_ID="${SUBSCRIPTION_ID:-$DEFAULT_SUBSCRIPTION_ID}"
+# Check if all required parameters are provided
+if [[ -z "${RESOURCE_GROUP:-}" || -z "${CLUSTER_NAME:-}" || -z "${BICEP_TEMPLATE_PATH:-}" || -z "${ADMIN_PASSWORD:-}" || -z "${VNET_NAME:-}" || -z "${SUBNET_NAME:-}" || -z "${NODE_RESOURCE_GROUP:-}" || -z "${SUBSCRIPTION_ID:-}" ]]; then
+    echo "Error: Missing required parameters."
+    usage
+fi
+
 
 # Authenticate with the AKS cluster
 echo "Authenticating with AKS cluster..."
