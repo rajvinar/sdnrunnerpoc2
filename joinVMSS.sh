@@ -16,6 +16,7 @@ DEFAULT_ADMIN_PASSWORD=""
 DEFAULT_VNET_NAME="default-vnet-name"
 DEFAULT_SUBNET_NAME="default-subnet-name"
 DEFAULT_NODE_RESOURCE_GROUP="default-node-resource-group"
+DEFAULT_SUBSCRIPTION_ID="9b8218f9-902a-4d20-a65c-e98acec5362f"
 
 # Parse command-line arguments
 while getopts "g:c:b:p:v:s:n:" opt; do
@@ -27,6 +28,7 @@ while getopts "g:c:b:p:v:s:n:" opt; do
         v) VNET_NAME="$OPTARG" ;;
         s) SUBNET_NAME="$OPTARG" ;;
         n) NODE_RESOURCE_GROUP="$OPTARG" ;;
+        s) SUBSCRIPTION_ID="$OPTARG" ;;
         *) usage ;;
     esac
 done
@@ -39,6 +41,7 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD:-$DEFAULT_ADMIN_PASSWORD}"
 VNET_NAME="${VNET_NAME:-$DEFAULT_VNET_NAME}"
 SUBNET_NAME="${SUBNET_NAME:-$DEFAULT_SUBNET_NAME}"
 NODE_RESOURCE_GROUP="${NODE_RESOURCE_GROUP:-$DEFAULT_NODE_RESOURCE_GROUP}"
+SUBSCRIPTION_ID="${SUBSCRIPTION_ID:-$DEFAULT_SUBSCRIPTION_ID}"
 
 # Authenticate with the AKS cluster
 echo "Authenticating with AKS cluster..."
@@ -47,7 +50,6 @@ az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$CLUSTER_NAME"
 
 # Retrieve the Object ID of the managed identity
 echo "Retrieving Object ID of the managed identity..."
-SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 OID=$(az identity show --ids "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/helm-script-msi-bdyaus4g6ycio" --query principalId -o tsv)
 
 # Apply the Kubernetes role using the managed identity
