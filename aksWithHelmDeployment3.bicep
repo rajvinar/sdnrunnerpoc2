@@ -172,9 +172,9 @@ resource cosmosdb 'Microsoft.DocumentDB/databaseAccounts@2022-05-15' = {
 }
 
 
-resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
+resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' existing = {
   name: 'helm-script-msi-${uniqueString(subscription().id)}'
-  location: region
+  //location: region
 }
 
 // resource aksRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
@@ -210,8 +210,21 @@ resource helmScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
     cleanupPreference: 'OnExpiration'
     timeout: 'PT20M'
     //scriptContent: 'curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash;az account set -s ${subscriptionId};az aks get-credentials --resource-group ${rg} --name ${clusterName};helm repo add stable https://charts.helm.sh/stable;helm repo update;helm install goldpinger stable/goldpinger --namespace default;'
-    primaryScriptUri: 'https://microsoft.sharepoint.com/:u:/t/Aznet/ER_seL0vhBZIkBCi982f9AMBTIglosMIH81UAZRvWh6jaA?e=4CBHQy'
-    arguments: '-g ${rg} -c ${clusterName} -b https://microsoft.sharepoint.com/:u:/t/Aznet/EYHHSrhTFVFEkwYfsekFgN4BZZbud2Ewi7ykRiX8gLV8nw?e=YPsuaT -p 123 -v ${vnetName} -s ${subnetName} -n ${rg}'
+    primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/joinVMSS.sh'
+    arguments: '-g ${rg} -c ${clusterName} -b liunx.bicep -p 123 -v ${vnetName} -s ${subnetName} -n ${rg}'
+    supportingScriptUris: [
+      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/linux.bicep'
+      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/provisionscript.bicep'
+      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/clouds.bicep'
+      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/cacert.sh'
+      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/config.sh'
+      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/containerd.sh'
+      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/delayext-and-waitdnsready.sh'
+      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/kubelet-msi.sh'
+      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/kubelet.sh'
+      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/provisionscript-manual/provisionscript.ps1'
+      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/bootstrap-role.yaml'
+    ]
   }
   tags: {
     'Az.Sec.DisableLocalAuth.Storage::Skip': 'Temporary bypass for deployment'
