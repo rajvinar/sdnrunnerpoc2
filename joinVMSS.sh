@@ -4,12 +4,12 @@ set -euxo pipefail
 
 # Usage function to display help
 usage() {
-    echo "Usage: $0 -g <resource-group> -c <cluster-name> -b <bicep-template-path> -p <admin-password> -v <vnet-name> -s <subnet-name> -n <node-resource-group> -u <subscription-id>"
+    echo "Usage: $0 -g <resource-group> -c <cluster-name> -b <bicep-template-path> -p <admin-password> -v <vnet-name> -s <subnet-name> -u <subscription-id>"
     exit 1
 }
 
 # Parse command-line arguments
-while getopts "g:c:b:p:v:s:n:u:" opt; do
+while getopts "g:c:b:p:v:s:u:" opt; do
     case "$opt" in
         g) RESOURCE_GROUP="$OPTARG" ;;
         c) CLUSTER_NAME="$OPTARG" ;;
@@ -17,7 +17,6 @@ while getopts "g:c:b:p:v:s:n:u:" opt; do
         p) ADMIN_PASSWORD="$OPTARG" ;;
         v) VNET_NAME="$OPTARG" ;;
         s) SUBNET_NAME="$OPTARG" ;;
-        n) NODE_RESOURCE_GROUP="$OPTARG" ;;
         u) SUBSCRIPTION_ID="$OPTARG" ;;
         *) usage ;;
     esac
@@ -43,9 +42,6 @@ if [[ -z "${VNET_NAME:-}" ]]; then
 fi
 if [[ -z "${SUBNET_NAME:-}" ]]; then
     missing_params+=("-s <subnet-name>")
-fi
-if [[ -z "${NODE_RESOURCE_GROUP:-}" ]]; then
-    missing_params+=("-n <node-resource-group>")
 fi
 if [[ -z "${SUBSCRIPTION_ID:-}" ]]; then
     missing_params+=("-u <subscription-id>")
@@ -90,7 +86,7 @@ for VMSS_NAME in "${VMSS_NAMES[@]}"; do
                      subnetname="$SUBNET_NAME" \
                      name="$VMSS_NAME" \
                      adminPassword="$ADMIN_PASSWORD" \
-                     vnetrgname="$NODE_RESOURCE_GROUP" \
+                     vnetrgname="$RESOURCE_GROUP" \
                      extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
 done
 

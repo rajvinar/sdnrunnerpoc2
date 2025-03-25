@@ -172,9 +172,9 @@ resource cosmosdb 'Microsoft.DocumentDB/databaseAccounts@2022-05-15' = {
 }
 
 
-resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' existing = {
-  name: 'helm-script-msi-${uniqueString(subscription().id)}'
-  //location: region
+resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
+  name: 'helm-script-msi'
+  location: region
 }
 
 // resource aksRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
@@ -211,7 +211,7 @@ resource helmScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
     timeout: 'PT20M'
     //scriptContent: 'curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash;az account set -s ${subscriptionId};az aks get-credentials --resource-group ${rg} --name ${clusterName};helm repo add stable https://charts.helm.sh/stable;helm repo update;helm install goldpinger stable/goldpinger --namespace default;'
     primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/joinVMSS.sh'
-    arguments: '-g ${rg} -c ${clusterName} -b liunx.bicep -p 123 -v ${vnetName} -s ${subnetName} -n ${rg}'
+    arguments: '-g ${rg} -c ${clusterName} -b liunx.bicep -p 123 -u 9b8218f9-902a-4d20-a65c-e98acec5362f -v ${vnetName} -s ${subnetName}'
     supportingScriptUris: [
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/linux.bicep'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/provisionscript.bicep'
