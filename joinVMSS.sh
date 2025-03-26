@@ -55,15 +55,17 @@ if [[ ${#missing_params[@]} -gt 0 ]]; then
     usage
 fi
 
+# Retrieve the Object ID of the managed identity
+echo "Retrieving Object ID of the managed identity..."
+OID=$(az identity show --ids "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/helm-script-msi" --query principalId -o tsv)
+echo "OID: $OID"
 
 # Authenticate with the AKS cluster
 echo "Authenticating with AKS cluster..."
 export KUBECONFIG=$(pwd)/kubeconfig.yaml
-az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$CLUSTER_NAME" --overwrite-existing
+az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$CLUSTER_NAME" --overwrite-existing  -a || exit 1
+echo "Successfully authenticated with AKS cluster."
 
-# Retrieve the Object ID of the managed identity
-echo "Retrieving Object ID of the managed identity..."
-OID=$(az identity show --ids "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/helm-script-msi" --query principalId -o tsv)
 
 # # Apply the Kubernetes role using the managed identity
 # echo "Applying Kubernetes role for the managed identity..."
