@@ -21,10 +21,6 @@ param (
     [string]$SubscriptionId
 )
 
-# Enable strict mode
-Set-StrictMode -Version Latest
-$ErrorActionPreference = "Stop"
-
 # Set the subscription
 Write-Host "Setting the subscription to $SubscriptionId..."
 az account set --subscription $SubscriptionId
@@ -44,6 +40,35 @@ Write-Host "Successfully authenticated with AKS cluster."
 Write-Host "Applying Kubernetes role for the managed identity..."
 (Get-Content "bootstrap-role.yaml") -replace "__OBJECT_ID__", $Oid | Set-Content "bootstrap-role.yaml"
 
+# # Define VMSS names
+# $VmssNames = @("dncpool1", "linuxpool1")
+
+# # Loop through VMSS names and create VMSS
+# foreach ($VmssName in $VmssNames) {
+#     $ExtensionName = "NodeJoin-$VmssName"
+#     Write-Host "Creating VMSS: $VmssName with extension: $ExtensionName"
+
+#     Start-Process -NoNewWindow -FilePath "az" -ArgumentList @(
+#         "deployment group create",
+#         "--name vmss-deployment-$VmssName",
+#         "--resource-group $ResourceGroup",
+#         "--template-file $BicepTemplatePath",
+#         "--parameters",
+#         "vnetname=$VnetName",
+#         "subnetname=$SubnetName",
+#         "name=$VmssName",
+#         "adminPassword=$AdminPassword",
+#         "vnetrgname=$ResourceGroup",
+#         "extensionName=$ExtensionName"
+#     ) -RedirectStandardOutput "./lin-script-$VmssName.log" -RedirectStandardError "./lin-script-$VmssName.log" -Wait
+# }
+
+# # Display logs for each VMSS deployment
+# foreach ($VmssName in $VmssNames) {
+#     Write-Host "Displaying logs for $VmssName deployment:"
+#     Get-Content "./lin-script-$VmssName.log"
+# }
+
 # Define VMSS names
 $VmssNames = @("dncpool1", "linuxpool1")
 
@@ -52,26 +77,21 @@ foreach ($VmssName in $VmssNames) {
     $ExtensionName = "NodeJoin-$VmssName"
     Write-Host "Creating VMSS: $VmssName with extension: $ExtensionName"
 
-    Start-Process -NoNewWindow -FilePath "az" -ArgumentList @(
-        "deployment group create",
-        "--name vmss-deployment-$VmssName",
-        "--resource-group $ResourceGroup",
-        "--template-file $BicepTemplatePath",
-        "--parameters",
-        "vnetname=$VnetName",
-        "subnetname=$SubnetName",
-        "name=$VmssName",
-        "adminPassword=$AdminPassword",
-        "vnetrgname=$ResourceGroup",
-        "extensionName=$ExtensionName"
-    ) -RedirectStandardOutput "./lin-script-$VmssName.log" -RedirectStandardError "./lin-script-$VmssName.log" -Wait
+    az deployment group create `
+        --name "vmss-deployment-$VmssName" `
+        --resource-group "$ResourceGroup" `
+        --template-file "$BicepTemplatePath" `
+        --parameters `
+        vnetname="$VnetName" `
+        subnetname="$SubnetName" `
+        name="$VmssName" `
+        adminPassword="$AdminPassword" `
+        vnetrgname="$ResourceGroup" `
+        extensionName="$ExtensionName"
 }
 
-# Display logs for each VMSS deployment
-foreach ($VmssName in $VmssNames) {
-    Write-Host "Displaying logs for $VmssName deployment:"
-    Get-Content "./lin-script-$VmssName.log"
-}
+Write-Host "VMSS creation completed."
+
 
 # Verify the nodes are ready
 Write-Host "Verifying that nodes are ready..."
