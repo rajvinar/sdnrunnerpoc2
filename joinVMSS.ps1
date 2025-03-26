@@ -1,25 +1,4 @@
-param (
-    [Parameter(Mandatory = $true)]
-    [string]$ResourceGroup,
-
-    [Parameter(Mandatory = $true)]
-    [string]$ClusterName,
-
-    [Parameter(Mandatory = $true)]
-    [string]$BicepTemplatePath,
-
-    [Parameter(Mandatory = $true)]
-    [string]$AdminPassword,
-
-    [Parameter(Mandatory = $true)]
-    [string]$VnetName,
-
-    [Parameter(Mandatory = $true)]
-    [string]$SubnetName,
-
-    [Parameter(Mandatory = $true)]
-    [string]$SubscriptionId
-)
+param ([Parameter(Mandatory = $true)][string]$ResourceGroup, [Parameter(Mandatory = $true)][string]$ClusterName, [Parameter(Mandatory = $true)][string]$BicepTemplatePath, [Parameter(Mandatory = $true)][string]$AdminPassword, [Parameter(Mandatory = $true)][string]$VnetName, [Parameter(Mandatory = $true)][string]$SubnetName, [Parameter(Mandatory = $true)][string]$SubscriptionId)
 
 # Set the subscription
 Write-Host "Setting the subscription to $SubscriptionId..."
