@@ -59,7 +59,7 @@ az account set -s $SUBSCRIPTION_ID
 
 # Retrieve the Object ID of the managed identity
 echo "Retrieving Object ID of the managed identity..."
-OID=$(az identity show --ids "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/helm-script-msi" --query principalId -o tsv)
+OID=$(az identity show --ids "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/helm-script-msi3" --query principalId -o tsv)
 echo "OID: $OID"
 
 # Authenticate with the AKS cluster
