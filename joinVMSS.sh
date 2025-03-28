@@ -103,50 +103,50 @@ for VMSS_NAME in "${VMSS_NAMES[@]}"; do
     cat "./lin-script-${VMSS_NAME}.log"
 done
 
-# Verify the nodes are ready
-echo "Verifying that nodes are ready..."
-NODES=$(kubectl get nodes -l kubernetes.azure.com/managed=false -o jsonpath='{.items[*].metadata.name}')
-for NODE in $NODES; do
-    READY=$(kubectl get node "$NODE" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
-    if [ "$READY" != "True" ]; then
-        echo "Node $NODE is not ready. Exiting."
-        exit 1
-    fi
-done
+# # Verify the nodes are ready
+# echo "Verifying that nodes are ready..."
+# NODES=$(kubectl get nodes -l kubernetes.azure.com/managed=false -o jsonpath='{.items[*].metadata.name}')
+# for NODE in $NODES; do
+#     READY=$(kubectl get node "$NODE" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
+#     if [ "$READY" != "True" ]; then
+#         echo "Node $NODE is not ready. Exiting."
+#         exit 1
+#     fi
+# done
 
-echo "All nodes are ready and joined to the AKS cluster."
+# echo "All nodes are ready and joined to the AKS cluster."
 
-# Promote one of the VMSS (e.g., linone) to be a system pool
-SYSTEM_POOL_NAME="dncpool1"
-echo "Promoting VMSS $SYSTEM_POOL_NAME to be a system pool..."
-az aks nodepool update \
-    --cluster-name "$CLUSTER_NAME" \
-    --resource-group "$RESOURCE_GROUP" \
-    --name "$SYSTEM_POOL_NAME" \
-    --mode System
+# # Promote one of the VMSS (e.g., linone) to be a system pool
+# SYSTEM_POOL_NAME="dncpool1"
+# echo "Promoting VMSS $SYSTEM_POOL_NAME to be a system pool..."
+# az aks nodepool update \
+#     --cluster-name "$CLUSTER_NAME" \
+#     --resource-group "$RESOURCE_GROUP" \
+#     --name "$SYSTEM_POOL_NAME" \
+#     --mode System
 
-echo "VMSS $SYSTEM_POOL_NAME has been promoted to a system pool."
+# echo "VMSS $SYSTEM_POOL_NAME has been promoted to a system pool."
 
-NODE_POOLS_TO_DELETE=("dncpool0" "linuxpool0")  # List of node pools to delete
-# Function to delete a node pool
-delete_node_pool() {
-    local node_pool_name=$1
-    echo "Deleting node pool: $node_pool_name from AKS cluster: $AKS_CLUSTER_NAME in resource group: $RESOURCE_GROUP..."
+# NODE_POOLS_TO_DELETE=("dncpool0" "linuxpool0")  # List of node pools to delete
+# # Function to delete a node pool
+# delete_node_pool() {
+#     local node_pool_name=$1
+#     echo "Deleting node pool: $node_pool_name from AKS cluster: $AKS_CLUSTER_NAME in resource group: $RESOURCE_GROUP..."
     
-    # Delete the node pool
-    az aks nodepool delete \
-        --resource-group "$RESOURCE_GROUP" \
-        --cluster-name "$CLUSTER_NAME" \
-        --name "$node_pool_name" \
-        --yes
+#     # Delete the node pool
+#     az aks nodepool delete \
+#         --resource-group "$RESOURCE_GROUP" \
+#         --cluster-name "$CLUSTER_NAME" \
+#         --name "$node_pool_name" \
+#         --yes
 
-    echo "Node pool $node_pool_name deleted successfully."
-}
+#     echo "Node pool $node_pool_name deleted successfully."
+# }
 
-# Loop through the node pools and delete them
-for NODE_POOL in "${NODE_POOLS_TO_DELETE[@]}"; do
-    delete_node_pool "$NODE_POOL"
-done
+# # Loop through the node pools and delete them
+# for NODE_POOL in "${NODE_POOLS_TO_DELETE[@]}"; do
+#     delete_node_pool "$NODE_POOL"
+# done
 
 # Verify the remaining node pools
 echo "Remaining node pools in the cluster:"
