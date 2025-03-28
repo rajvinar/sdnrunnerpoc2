@@ -26,7 +26,7 @@ param securityType string = 'TrustedLaunch'
 
 resource aksbootstrapid 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   scope: resourceGroup(subscriptionId, resourceGroupName) 
-  name: 'aksbootstrap'
+  name: 'helm-script-msi3'
 }
 
 resource vnet 'Microsoft.Network/virtualNetworks@2022-09-01' existing = {

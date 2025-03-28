@@ -16,7 +16,7 @@ resource aks 'Microsoft.ContainerService/managedClusters@2023-06-01' existing = 
 }
 
 resource aksbootstrapid 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: 'aksbootstrap'
+  name: 'helm-script-msi3'
   scope: resourceGroup(hubsub, hubgroup)
 }
 
