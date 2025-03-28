@@ -29,12 +29,12 @@ var kubeletversion = cloud.GetK8sVersion(currentVersionArray, tenant().tenantId)
 var fqdn = aks.properties.fqdn
 var cert = split(substring(kubeconfig, indexOf(kubeconfig, 'certificate-authority-data: ') + 28), '\n')[0]
 
-var delayextandwaitdnsready = 'echo ${loadFileAsBase64('scripts/common/delayext-and-waitdnsready.sh')} | base64 -d | bash -s ${fqdn} ${artifactHostname}'
-var cacertscript = 'echo ${loadFileAsBase64('scripts/common/cacert.sh')} | base64 -d | bash -s '
-var configscript = 'echo ${loadFileAsBase64('scripts/common/config.sh')} | base64 -d | bash -s'
-var containerdscript = 'echo ${loadFileAsBase64('scripts/common/containerd.sh')} | base64 -d | bash -s ${artifactUrl} ${runcVersion} ${containerdVersion} ${mcrUrl}'
-var kubeletmsiscript = 'echo ${loadFileAsBase64('scripts/common/kubelet-msi.sh')} | base64 -d | bash -s ${fqdn} ${aksbootstrapid.properties.clientId} ${artifactUrl} ${kubeLoginVersion}'
-var kubeletscript = 'echo ${loadFileAsBase64('scripts/common/kubelet.sh')} | base64 -d | bash -s ${kubeletversion} ${fqdn} ${cert} ${artifactUrl}'
+var delayextandwaitdnsready = 'echo ${loadFileAsBase64('./delayext-and-waitdnsready.sh')} | base64 -d | bash -s ${fqdn} ${artifactHostname}'
+var cacertscript = 'echo ${loadFileAsBase64('./cacert.sh')} | base64 -d | bash -s '
+var configscript = 'echo ${loadFileAsBase64('./config.sh')} | base64 -d | bash -s'
+var containerdscript = 'echo ${loadFileAsBase64('./containerd.sh')} | base64 -d | bash -s ${artifactUrl} ${runcVersion} ${containerdVersion} ${mcrUrl}'
+var kubeletmsiscript = 'echo ${loadFileAsBase64('./kubelet-msi.sh')} | base64 -d | bash -s ${fqdn} ${aksbootstrapid.properties.clientId} ${artifactUrl} ${kubeLoginVersion}'
+var kubeletscript = 'echo ${loadFileAsBase64('./kubelet.sh')} | base64 -d | bash -s ${kubeletversion} ${fqdn} ${cert} ${artifactUrl}'
 
 var defaultScripts = [
   delayextandwaitdnsready
