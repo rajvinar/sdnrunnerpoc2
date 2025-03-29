@@ -75,7 +75,7 @@ sed "s|__OBJECT_ID__|$OID|g" bootstrap-role.yaml
 
 
 # Define VMSS names
-VMSS_NAMES=("dncpool1" "linuxpool1")
+VMSS_NAMES=("dncpool2" "linuxpool2")
 
 # Loop through VMSS names and create VMSS
 for VMSS_NAME in "${VMSS_NAMES[@]}"; do
