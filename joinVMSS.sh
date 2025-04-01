@@ -82,7 +82,7 @@ mv cns-unmanaged-windows.yaml chart/templates/
 mv cns-unmanaged.yaml chart/templates/
 ls
 
-sed "s|__OBJECT_ID__|$OID|g" .pipelines/singularity-runner/byon/bootstrap-role.yaml | kubectl apply -f -
+sed "s|__OBJECT_ID__|$OID|g" ./bootstrap-role.yaml | kubectl apply -f -
           if [  "${{ parameters.cnscniversion }}" != "none" ]; then
             helm install -n kube-system base ./chart --set cilium.enabled=false --set azurecnsUnmanaged.enabled=true --set wiImageCredProvider.enabled=false --set azurecnsUnmanaged.version=${{ parameters.cnscniversion }}
             echo "Feature value: ${{ parameters.cnscniversion }}"
