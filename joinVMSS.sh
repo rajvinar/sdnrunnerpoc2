@@ -70,47 +70,57 @@ echo "OID: $OID"
 
 pwd  # Prints the current working directory
 find . -type d  # Lists all directories (including subdirectories)
+ls
 
+mkdir -p chart
+mkdir -p chart/templates
 
-# sed "s|__OBJECT_ID__|$OID|g" .pipelines/singularity-runner/byon/bootstrap-role.yaml | kubectl apply -f -
-#           if [  "${{ parameters.cnscniversion }}" != "none" ]; then
-#             helm install -n kube-system base .pipelines/singularity-runner/byon/chart/base --set cilium.enabled=false --set azurecnsUnmanaged.enabled=true --set wiImageCredProvider.enabled=false --set azurecnsUnmanaged.version=${{ parameters.cnscniversion }}
-#             echo "Feature value: ${{ parameters.cnscniversion }}"
-#           else 
-#             echo "installing azure cni plugins."
-#             helm install -n kube-system azure-cni-plugins .pipelines/singularity-runner/byon/chart/base --set installCniPlugins.enabled=true
-#           fi
+mv values.yaml chart/
+mv Chart.yaml chart/
+mv cni-plugins-installer.yaml chart/templates/
+mv cns-unmanaged-windows.yaml chart/templates/
+mv cns-unmanaged.yaml chart/templates/
+ls
 
-# # Define VMSS names
-# VMSS_NAMES=("dncpool1" "linuxpool1")
+sed "s|__OBJECT_ID__|$OID|g" .pipelines/singularity-runner/byon/bootstrap-role.yaml | kubectl apply -f -
+          if [  "${{ parameters.cnscniversion }}" != "none" ]; then
+            helm install -n kube-system base ./chart --set cilium.enabled=false --set azurecnsUnmanaged.enabled=true --set wiImageCredProvider.enabled=false --set azurecnsUnmanaged.version=${{ parameters.cnscniversion }}
+            echo "Feature value: ${{ parameters.cnscniversion }}"
+          else 
+            echo "installing azure cni plugins."
+            helm install -n kube-system azure-cni-plugins ./chart --set installCniPlugins.enabled=true
+          fi
 
-# # Loop through VMSS names and create VMSS
-# for VMSS_NAME in "${VMSS_NAMES[@]}"; do
-#     EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
-#     echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
+# Define VMSS names
+VMSS_NAMES=("dncpool1" "linuxpool1")
 
-#     az deployment group create \
-#         --name "vmss-deployment-${VMSS_NAME}" \
-#         --resource-group "$RESOURCE_GROUP" \
-#         --template-file "$BICEP_TEMPLATE_PATH" \
-#         --parameters vnetname="$VNET_NAME" \
-#                      subnetname="$SUBNET_NAME" \
-#                      name="$VMSS_NAME" \
-#                      adminPassword="$ADMIN_PASSWORD" \
-#                      vnetrgname="$RESOURCE_GROUP" \
-#                      vmsssku="Standard_E8s_v3" \
-#                      location="eastus2" \
-#                      extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
-# done
+# Loop through VMSS names and create VMSS
+for VMSS_NAME in "${VMSS_NAMES[@]}"; do
+    EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
+    echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
 
-# # Wait for all background processes to complete
-# wait
+    az deployment group create \
+        --name "vmss-deployment-${VMSS_NAME}" \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file "$BICEP_TEMPLATE_PATH" \
+        --parameters vnetname="$VNET_NAME" \
+                     subnetname="$SUBNET_NAME" \
+                     name="$VMSS_NAME" \
+                     adminPassword="$ADMIN_PASSWORD" \
+                     vnetrgname="$RESOURCE_GROUP" \
+                     vmsssku="Standard_E8s_v3" \
+                     location="eastus2" \
+                     extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
+done
 
-# # Display logs for each VMSS deployment
-# for VMSS_NAME in "${VMSS_NAMES[@]}"; do
-#     echo "Displaying logs for $VMSS_NAME deployment:"
-#     cat "./lin-script-${VMSS_NAME}.log"
-# done
+# Wait for all background processes to complete
+wait
+
+# Display logs for each VMSS deployment
+for VMSS_NAME in "${VMSS_NAMES[@]}"; do
+    echo "Displaying logs for $VMSS_NAME deployment:"
+    cat "./lin-script-${VMSS_NAME}.log"
+done
 
 # # Verify the nodes are ready
 # echo "Verifying that nodes are ready..."
