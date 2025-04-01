@@ -1,0 +1,175 @@
+{{- if .Values.azurecnsUnmanaged.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: azure-cns-unmanaged-win
+  name: azure-cns-unmanaged-win
+  namespace: {{ .Release.Namespace }}
+spec:
+  minReadySeconds: 10
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      k8s-app: azure-cns-unmanaged-win
+  template:
+    metadata:
+      labels:
+        k8s-app: azure-cns-unmanaged-win
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.azure.com/managed
+                operator: In
+                values:
+                - 'false'
+              - key: type
+                operator: NotIn
+                values:
+                - virtual-kubelet
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - windows
+      containers:
+      - args:
+        - .\setkubeconfigpath.ps1
+        - ;
+        - .\azure-cns.exe
+        - -c
+        - tcp://$(CNSIpAddress):$(CNSPort)
+        - -t
+        - $(CNSLogTarget)
+        - -o
+        - $(CNSLogDir)
+        - -storefilepath
+        - $(CNSStoreFilePath)
+        - -config-path
+        - '%CONTAINER_SANDBOX_MOUNT_POINT%\$(CNS_CONFIGURATION_PATH)'
+        - --kubeconfig
+        - .\kubeconfig
+        command:
+        - powershell.exe
+        env:
+        - name: PATH
+          value: '%CONTAINER_SANDBOX_MOUNT_POINT%\Windows\System32\WindowsPowershell\v1.0\'
+        - name: CNSIpAddress
+          value: 127.0.0.1
+        - name: CNSPort
+          value: "10090"
+        - name: CNSLogTarget
+          value: stdoutfile
+        - name: CNSLogDir
+          value: /k/azurecns
+        - name: CNSStoreFilePath
+          value: /k/azurecns/
+        - name: CNS_CONFIGURATION_PATH
+          value: /etc/azure-cns/cns_config.json
+        - name: NODENAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: POD_CIDRs
+          value: {{ .Values.azurecnsUnmanaged.podCIDRs }}
+        - name: SERVICE_CIDRs
+          value: {{ .Values.azurecnsUnmanaged.serviceCIDRs }}
+        - name: INFRA_VNET_CIDRs
+          value: {{ .Values.azurecnsUnmanaged.infraVnetCIDRs }}
+        image: mcr.microsoft.com/containernetworking/azure-cns:{{ .Values.azurecnsUnmanaged.version }}
+        imagePullPolicy: IfNotPresent
+        name: cns-container
+        ports:
+        - containerPort: 10090
+          name: api
+          protocol: TCP
+        - containerPort: 10092
+          name: metrics
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 250m
+            memory: 250Mi
+        securityContext:
+          privileged: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /k/azurecns
+          name: log
+        - mountPath: /etc/azure-cns
+          name: cns-config
+        - mountPath: /var/run/azure-vnet
+          name: azure-vnet
+        workingDir: $env:CONTAINER_SANDBOX_MOUNT_POINT
+      dnsPolicy: ClusterFirst
+      hostNetwork: true
+      initContainers:
+      - args:
+        - '%CONTAINER_SANDBOX_MOUNT_POINT%/dropgz'
+        - deploy
+        - --skip-verify
+        - azure-vnet-stateless
+        - -o
+        - /k/azurecni/bin/azure-vnet.exe
+        command:
+        - powershell.exe
+        env:
+        - name: PATHEXT
+          value: .EXE;;
+        image: mcr.microsoft.com/containernetworking/azure-cni:{{ .Values.azurecnsUnmanaged.version }}
+        imagePullPolicy: IfNotPresent
+        name: cni-installer
+        resources: {}
+        securityContext:
+          capabilities:
+            drop:
+            - ALL
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /k/azurecni/bin/
+          name: cni-bin
+      priorityClassName: system-node-critical
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        windowsOptions:
+          hostProcess: true
+          runAsUserName: NT AUTHORITY\SYSTEM
+      serviceAccount: azure-cns
+      serviceAccountName: azure-cns
+      terminationGracePeriodSeconds: 30
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - effect: NoExecute
+        operator: Exists
+      - effect: NoSchedule
+        operator: Exists
+      volumes:
+      - hostPath:
+          path: /k/azurecns
+          type: DirectoryOrCreate
+        name: log
+      - configMap:
+          defaultMode: 420
+          name: cns-win-config
+        name: cns-config
+      - hostPath:
+          path: /var/run/azure-vnet
+          type: DirectoryOrCreate
+        name: azure-vnet
+      - hostPath:
+          path: /k/azurecni/bin
+          type: DirectoryOrCreate
+        name: cni-bin
+  updateStrategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 2%
+    type: RollingUpdate
+{{- end }}

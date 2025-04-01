@@ -1,0 +1,26 @@
+wiImageCredProvider:
+  enabled: true
+  image: nexusstaticacr.azurecr.io/nexus/images/wi-image-cred-provider:0.2.530
+  identityId: per-cluster
+cilium:
+  enabled: true
+  clusterPoolIPv4PodCIDR: "100.64.0.0/10"
+  mtu: auto
+  image: 
+    cilium: nexusstaticacr.azurecr.io/cilium/cilium:v1.12.9@sha256:677e7a906506b8a13fecb6f0f783ed647b36036786c8c640ff98e25ec2f2ab1f
+    operator: nexusstaticacr.azurecr.io/cilium/operator-generic:v1.12.9@sha256:cc8d7b222f63812c691a685b32fedab8a805d243da720653cdc2ff0c4a562673
+    startup: nexusstaticacr.azurecr.io/cilium/startup-script:d69851597ea019af980891a4628fb36b7880ec26
+kubeProxyUnmanaged:
+  enabled: true
+  clusterCIDR: "100.64.0.0/10"
+azureSPC:
+  enabled: false
+azurecnsUnmanaged:
+  enabled: false
+  swiftlabel:
+    enabled: true
+  podCIDRs: "10.226.0.0/16"
+  serviceCIDRs: "10.0.0.0/16"
+  infraVnetCIDRs: "10.225.0.0/16,10.227.0.0/16"
+installCniPlugins:
+  enabled: false

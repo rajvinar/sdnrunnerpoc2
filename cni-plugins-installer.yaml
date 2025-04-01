@@ -1,0 +1,114 @@
+{{- if .Values.installCniPlugins.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: cni-plugins-installer-daemonset
+  name: cni-plugins-installer-daemonset
+  namespace: {{ .Release.Namespace }}
+spec:
+  minReadySeconds: 10
+  selector:
+    matchLabels:
+      k8s-app: cni-plugins-installer-daemonset
+  template:
+    metadata:
+      labels:
+        k8s-app: cni-plugins-installer-daemonset
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.azure.com/managed
+                operator: In
+                values:
+                - 'false'
+              - key: type
+                operator: NotIn
+                values:
+                - virtual-kubelet
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      containers:
+      - name: busybox-container
+        image: busybox
+        command: ["sh", "-c", "while true; do echo Hello from BusyBox; sleep 3600; done"]
+      dnsPolicy: ClusterFirst
+      hostNetwork: true
+      initContainers:
+      - name: cni-plugins-installer-init
+        image: nexusstaticacr.azurecr.io/rancher/hardened-cni-plugins:v1.4.1-build20240325
+        volumeMounts:
+        - mountPath: /host/opt/cni/bin
+          name: cni-bin
+        env:
+        - name: SKIP_CNI_BINARIES
+          value: "azure-vnet,azure-vnet-telemetry,bandwidth,bridge,dhcp,flannel,host-device,host-local,ipvlan,macvlan,ptp,sbr,static,tuning,vlan,vrf,tap,dummy"
+        securityContext:
+          seLinuxOptions:
+            level: s0
+            type: spc_t
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 10Mi
+          limits:
+            cpu: 10m
+            memory: 10Mi
+      - args:
+        - deploy
+        - --skip-verify
+        - azure-swift.conflist
+        - -o
+        - /etc/cni/net.d/15-azure-swift.conflist
+        command:
+        - /dropgz
+        image: mcr.microsoft.com/containernetworking/azure-cni:v1.6.5
+        imagePullPolicy: IfNotPresent
+        name: cni-plugins-installer
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /opt/cni/bin
+          name: cni-bin
+        - mountPath: /etc/cni/net.d
+          name: cni-conflist
+      priorityClassName: system-node-critical
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - effect: NoExecute
+        operator: Exists
+      - effect: NoSchedule
+        operator: Exists
+      volumes:
+      - hostPath:
+          path: /etc/cni/net.d
+          type: Directory
+        name: cni-conflist
+      - configMap:
+          defaultMode: 420
+          name: cns-config
+        name: cns-config
+      - hostPath:
+          path: /opt/cni/bin
+          type: Directory
+        name: cni-bin
+updateStrategy:
+  rollingUpdate:
+    maxSurge: 0
+    maxUnavailable: 2%
+  type: RollingUpdate
+{{- end }}
