@@ -68,14 +68,17 @@ echo "Retrieving Object ID of the managed identity..."
 OID=$(az identity show --ids "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/helm-script-msi3" --query principalId -o tsv)
 echo "OID: $OID"
 
-
-# Apply the Kubernetes role using the managed identity
-echo "Applying Kubernetes role for the managed identity..."
-sed "s|__OBJECT_ID__|$OID|g" bootstrap-role.yaml
-
+sed "s|__OBJECT_ID__|$OID|g" .pipelines/singularity-runner/byon/bootstrap-role.yaml | kubectl apply -f -
+          if [  "${{ parameters.cnscniversion }}" != "none" ]; then
+            helm install -n kube-system base .pipelines/singularity-runner/byon/chart/base --set cilium.enabled=false --set azurecnsUnmanaged.enabled=true --set wiImageCredProvider.enabled=false --set azurecnsUnmanaged.version=${{ parameters.cnscniversion }}
+            echo "Feature value: ${{ parameters.cnscniversion }}"
+          else 
+            echo "installing azure cni plugins."
+            helm install -n kube-system azure-cni-plugins .pipelines/singularity-runner/byon/chart/base --set installCniPlugins.enabled=true
+          fi
 
 # Define VMSS names
-VMSS_NAMES=("dncpool2" "linuxpool2")
+VMSS_NAMES=("dncpool1" "linuxpool1")
 
 # Loop through VMSS names and create VMSS
 for VMSS_NAME in "${VMSS_NAMES[@]}"; do
@@ -91,6 +94,8 @@ for VMSS_NAME in "${VMSS_NAMES[@]}"; do
                      name="$VMSS_NAME" \
                      adminPassword="$ADMIN_PASSWORD" \
                      vnetrgname="$RESOURCE_GROUP" \
+                     vmsssku="Standard_E8s_v3" \
+                     location="eastus2" \
                      extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
 done
 
