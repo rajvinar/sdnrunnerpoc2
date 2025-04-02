@@ -130,6 +130,7 @@ for VMSS_NAME in "${VMSS_NAMES[@]}"; do
                      vmsssku="Standard_E8s_v3" \
                      location="eastus2" \
                      extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
+    wait
 done
 
 # Wait for all background processes to complete
