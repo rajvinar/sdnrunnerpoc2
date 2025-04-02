@@ -108,10 +108,10 @@ fi
 
 sed "s|__OBJECT_ID__|$OID|g" ./bootstrap-role.yaml | kubectl apply -f -
         echo "installing azure cni and cns."
-        helm install -n kube-system base1 ./chart --set installCniPlugins.enabled=true --set cilium.enabled=false --set azurecnsUnmanaged.enabled=true --set wiImageCredProvider.enabled=false --set azurecnsUnmanaged.version=v1.6.23 --set azurecnsUnmanaged.versionWindows=v1.6.23
+        helm install -n kube-system base2 ./chart --set installCniPlugins.enabled=true --set cilium.enabled=false --set azurecnsUnmanaged.enabled=true --set wiImageCredProvider.enabled=false --set azurecnsUnmanaged.version=v1.6.23 --set azurecnsUnmanaged.versionWindows=v1.6.23
 
 # Define VMSS names
-VMSS_NAMES=("dncpool4" "linuxpool4")
+VMSS_NAMES=("dncpool5" "linuxpool5")
 
 # Loop through VMSS names and create VMSS
 for VMSS_NAME in "${VMSS_NAMES[@]}"; do
