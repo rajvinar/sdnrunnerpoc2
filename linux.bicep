@@ -116,7 +116,7 @@ resource vmss 'Microsoft.Compute/virtualMachineScaleSets@2023-03-01' = {
       extensionProfile: {
         extensions: [
           {
-            name: extensionName
+            name: '${extensionName}'
             properties: {
               publisher: 'Microsoft.Azure.Extensions'
               type: 'CustomScript'

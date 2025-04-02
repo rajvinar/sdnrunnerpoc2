@@ -108,10 +108,10 @@ fi
 
 sed "s|__OBJECT_ID__|$OID|g" ./bootstrap-role.yaml | kubectl apply -f -
         echo "installing azure cni plugins."
-        helm install -n kube-system azure-cni-plugins2 ./chart --set installCniPlugins.enabled=true
+        helm install -n kube-system azure-cni-plugins3 ./chart --set installCniPlugins.enabled=true
 
 # Define VMSS names
-VMSS_NAMES=("dncpool1" "linuxpool1")
+VMSS_NAMES=("dncpool2" "linuxpool2")
 
 # Loop through VMSS names and create VMSS
 for VMSS_NAME in "${VMSS_NAMES[@]}"; do
