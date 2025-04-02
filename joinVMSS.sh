@@ -87,6 +87,13 @@ fi
 
 ls
 
+if ! command -v kubectl &> /dev/null; then
+    echo "kubectl not found! Installing..."
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    chmod +x kubectl
+    sudo mv kubectl /usr/local/bin/
+fi
+
 sed "s|__OBJECT_ID__|$OID|g" ./bootstrap-role.yaml | kubectl apply -f -
         echo "installing azure cni plugins."
         helm install -n kube-system azure-cni-plugins ./chart --set installCniPlugins.enabled=true
