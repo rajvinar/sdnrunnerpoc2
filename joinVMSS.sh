@@ -92,6 +92,7 @@ apk add --no-cache curl
 if ! command -v kubectl &> /dev/null; then
     echo "kubectl not found! Installing..."
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    wait
     chmod +x kubectl
     mv kubectl /usr/local/bin/
     kubectl version --client
@@ -100,7 +101,8 @@ fi
 
 if ! command -v helm &> /dev/null; then
     echo "helm not found! Installing..."
-    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    apk add --no-cache helm
+    wait
     helm version
 fi
 
