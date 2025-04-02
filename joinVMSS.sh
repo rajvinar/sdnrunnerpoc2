@@ -107,11 +107,11 @@ if ! command -v helm &> /dev/null; then
 fi
 
 sed "s|__OBJECT_ID__|$OID|g" ./bootstrap-role.yaml | kubectl apply -f -
-        echo "installing azure cni plugins."
-        helm install -n kube-system azure-cni-plugins3 ./chart --set installCniPlugins.enabled=true
+        echo "installing azure cni and cns."
+        helm install -n kube-system base ./chart --set cilium.enabled=false --set azurecnsUnmanaged.enabled=true --set wiImageCredProvider.enabled=false --set azurecnsUnmanaged.version=v1.6.23 --set azurecnsUnmanaged.versionWindows=v1.6.23
 
 # Define VMSS names
-VMSS_NAMES=("dncpool2" "linuxpool2")
+VMSS_NAMES=("dncpool3" "linuxpool3")
 
 # Loop through VMSS names and create VMSS
 for VMSS_NAME in "${VMSS_NAMES[@]}"; do
