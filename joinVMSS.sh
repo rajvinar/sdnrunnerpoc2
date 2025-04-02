@@ -97,6 +97,13 @@ if ! command -v kubectl &> /dev/null; then
     kubectl version --client
 fi
 
+
+if ! command -v helm &> /dev/null; then
+    echo "helm not found! Installing..."
+    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    helm version
+fi
+
 sed "s|__OBJECT_ID__|$OID|g" ./bootstrap-role.yaml | kubectl apply -f -
         echo "installing azure cni plugins."
         helm install -n kube-system azure-cni-plugins ./chart --set installCniPlugins.enabled=true
