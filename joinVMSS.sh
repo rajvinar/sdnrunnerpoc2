@@ -87,13 +87,14 @@ fi
 
 ls
 
+apk add --no-cache curl
+
 if ! command -v kubectl &> /dev/null; then
     echo "kubectl not found! Installing..."
-    #curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-    sudo apt update
-    sudo apt install -y kubectl
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
     chmod +x kubectl
-    sudo mv kubectl /usr/local/bin/
+    mv kubectl /usr/local/bin/
+    kubectl version --client
 fi
 
 sed "s|__OBJECT_ID__|$OID|g" ./bootstrap-role.yaml | kubectl apply -f -
