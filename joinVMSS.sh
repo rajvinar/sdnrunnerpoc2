@@ -157,8 +157,7 @@ done
 echo "All nodes are ready and joined to the AKS cluster."
 
 # Promote one of the VMSS to be a user pool
-kubectl label node linuxpool12000000 \
-  kubernetes.azure.com/mode=user
+kubectl label node linuxpool12000000 kubernetes.azure.com/mode=user --overwrite
 
 
 
