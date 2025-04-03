@@ -157,7 +157,7 @@ done
 echo "All nodes are ready and joined to the AKS cluster."
 
 # Promote one of the VMSS (e.g., linone) to be a system pool
-SYSTEM_POOL_NAME="dncpool12"
+SYSTEM_POOL_NAME="dncpool12000000"
 echo "Promoting VMSS $SYSTEM_POOL_NAME to be a system pool..."
 az aks nodepool update \
     --cluster-name "$CLUSTER_NAME" \
