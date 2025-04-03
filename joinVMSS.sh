@@ -156,18 +156,9 @@ done
 
 echo "All nodes are ready and joined to the AKS cluster."
 
-# Promote one of the VMSS (e.g., linone) to be a system pool
-SYSTEM_POOL_NAME="dncpool12000000"
-echo "Promoting VMSS $SYSTEM_POOL_NAME to be a system pool..."
-az aks nodepool update \
-    --cluster-name "$CLUSTER_NAME" \
-    --resource-group "$RESOURCE_GROUP" \
-    --name "$SYSTEM_POOL_NAME" \
-    --mode System
-
-echo "VMSS $SYSTEM_POOL_NAME has been promoted to a system pool."
-
-
+# Promote one of the VMSS to be a user pool
+kubectl label node linuxpool12000000 \
+  kubernetes.azure.com/mode=user
 
 
 
