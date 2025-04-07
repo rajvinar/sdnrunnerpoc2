@@ -1,0 +1,41 @@
+# This yaml is just used 1 time when the cluster is created, to trigger setting the CNI mode to "transparent-vlan", which first requires switching out the CNI conflist for the transparent-vlan one
+# After this, the VMs are restarted in create_customer_cluster.sh
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: azure-cni
+  labels:
+    app: azure-cni
+spec:
+  selector:
+    matchLabels:
+      app: azure-cni
+  template:
+    metadata:
+      labels:
+        app: azure-cni
+    spec:
+      nodeSelector:
+        node-type: cnscni
+      hostNetwork: true
+      initContainers:
+        - name: init-cni-dropgz
+          image: mcr.microsoft.com/containernetworking/azure-cni:v1.5.23
+          imagePullPolicy: IfNotPresent
+          command: ["/dropgz"]
+          args:
+            - deploy
+            - azure-multitenancy-transparent-vlan.conflist
+            - -o
+            - /etc/cni/net.d/10-azure.conflist
+          volumeMounts:
+            - name: cni-conflist
+              mountPath: /etc/cni/net.d
+      containers:
+        - name: pause
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+      volumes:
+        - name: cni-conflist
+          hostPath:
+            path: /etc/cni/net.d
+            type: Directory
