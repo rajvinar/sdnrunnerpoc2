@@ -60,7 +60,7 @@ az account set -s $SUBSCRIPTION_ID
 # Authenticate with the AKS cluster
 echo "Authenticating with AKS cluster..."
 export KUBECONFIG=$(pwd)/kubeconfig.yaml
-az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$CLUSTER_NAME" --overwrite-existing  -a || exit 1
+az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$CLUSTER_NAME" --overwrite-existing  --admin || exit 1
 echo "Successfully authenticated with AKS cluster."
 
 # Retrieve the Object ID of the managed identity
