@@ -194,7 +194,6 @@ echo "Deploying dnc_configmap.yaml to namespace default..."
 kubectl apply -f dnc_configmap.yaml -n default
 
 echo "Deploying dnc_deployment.yaml to namespace default..."
-az aks update -n $CLUSTER_NAME -g $RESOURCE_GROUP --attach-acr /subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/acn-shared-resources/providers/Microsoft.ContainerRegistry/registries/acndev
 kubectl apply -f dnc_deployment.yaml -n default
 
 # # Variables for new image values
