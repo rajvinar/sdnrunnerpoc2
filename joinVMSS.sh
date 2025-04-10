@@ -194,6 +194,7 @@ echo "Deploying dnc_configmap.yaml to namespace default..."
 kubectl apply -f dnc_configmap.yaml -n default
 
 echo "Deploying dnc_deployment.yaml to namespace default..."
+az acr show --name acndev
 az aks update -n $CLUSTER_NAME -g $RESOURCE_GROUP --attach-acr acndev
 kubectl apply -f dnc_deployment.yaml -n default
 
