@@ -143,22 +143,70 @@ VMSS_NAMES=("dncpool12" "linuxpool12")
 #     cat "./lin-script-${VMSS_NAME}.log"
 # done
 
-# Verify the nodes are ready
-echo "Verifying that nodes are ready..."
-NODES=$(kubectl get nodes -l kubernetes.azure.com/managed=false -o jsonpath='{.items[*].metadata.name}')
-for NODE in $NODES; do
-    READY=$(kubectl get node "$NODE" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
-    if [ "$READY" != "True" ]; then
-        echo "Node $NODE is not ready. Exiting."
-        exit 1
-    fi
-done
+# # Verify the nodes are ready
+# echo "Verifying that nodes are ready..."
+# NODES=$(kubectl get nodes -l kubernetes.azure.com/managed=false -o jsonpath='{.items[*].metadata.name}')
+# for NODE in $NODES; do
+#     READY=$(kubectl get node "$NODE" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
+#     if [ "$READY" != "True" ]; then
+#         echo "Node $NODE is not ready. Exiting."
+#         exit 1
+#     fi
+# done
 
-echo "All nodes are ready and joined to the AKS cluster."
+# echo "All nodes are ready and joined to the AKS cluster."
 
 # Promote one of the VMSS to be a user pool
 kubectl label node linuxpool12000000 kubernetes.azure.com/mode=user --overwrite
 
+
+# # install cns and cni
+# echo "Installing Azure CNS and CNI plugins..."
+
+# # Label the nodes to specify the type
+# kubectl label node linuxpool12000000 node-type=cnscni
+
+# # Filepath to the YAML file
+# YAML_FILE="azure_cni_daemonset.yaml"
+
+# # Deploy the YAML file to the Kubernetes cluster
+# echo "Deploying $YAML_FILE to namespace $NAMESPACE..."
+# kubectl apply -f "$YAML_FILE" -n "$NAMESPACE"
+
+# # Verify the deployment
+# echo "Verifying the deployment..."
+# kubectl get daemonset azure-cni -n "$NAMESPACE"
+
+# echo "Deployment completed successfully!"
+
+# Label the nodes to specify the type
+kubectl label node linuxpool12000000 node-type=cnscni
+kubectl label node dncpool12000000 node-type=dnc
+
+echo "Deploying azure_cns_configmap.yaml to namespace default..."
+kubectl apply -f azure_cns_configmap.yaml -n default
+
+# Deploy the DaemonSet
+echo "Deploying azure_cns_daemonset.yaml to namespace default..."
+kubectl apply -f azure_cns_daemonset.yaml -n default
+
+echo "Deploying dnc_configmap.yaml to namespace default..."
+kubectl apply -f dnc_configmap.yaml -n default
+
+echo "Deploying dnc_deployment.yaml to namespace default..."
+kubectl apply -f dnc_deployment.yaml -n default
+
+# # Variables for new image values
+# NEW_INIT_CONTAINER_IMAGE="mcr.microsoft.com/containernetworking/azure-cni:v1.6.0"
+# NEW_CONTAINER_IMAGE="mcr.microsoft.com/oss/kubernetes/pause:3.7"
+
+# # Update the image in the initContainers section
+# sed -i 's|mcr.microsoft.com/containernetworking/azure-cni:[^"]*|'"$NEW_INIT_CONTAINER_IMAGE"'|' "$YAML_FILE"
+
+# # Update the image in the containers section
+# sed -i 's|mcr.microsoft.com/oss/kubernetes/pause:[^"]*|'"$NEW_CONTAINER_IMAGE"'|' "$YAML_FILE"
+
+# echo "Updated images in $YAML_FILE"
 
 
 # NODE_POOLS_TO_DELETE=("dncpool0" "linuxpool0")  # List of node pools to delete

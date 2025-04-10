@@ -1,0 +1,35 @@
+# run chroot /host once you're in to be ultra-privileged
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: hostdaemonset
+  labels:
+    app: hostdaemonset
+spec:
+  selector:
+    matchLabels:
+      app: hostdaemonset
+  template:
+    metadata:
+      labels:
+        app: hostdaemonset
+    spec:
+      nodeSelector:
+        agentpool: linuxpool
+      hostNetwork: true
+      containers:
+        - name: alpine
+          image: alpine:3.17.7
+          command:
+            - /bin/sh
+            - "-c"
+            - "sleep 60m"
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - mountPath: /host
+              name: backdoor
+      volumes:
+        - name: backdoor
+          hostPath:
+            path: /
