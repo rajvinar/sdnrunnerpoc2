@@ -134,6 +134,28 @@ VMSS_NAMES=("dncpool12" "linuxpool12")
 #     wait
 # done
 
+
+WORKER_VMSS=("linuxpool121")
+# Loop through VMSS names and create VMSS
+for VMSS_NAME in "${VMSS_NAMES[@]}"; do
+    EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
+    echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
+
+    az deployment group create \
+        --name "vmss-deployment-${VMSS_NAME}" \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file "$BICEP_TEMPLATE_PATH" \
+        --parameters vnetname="$VNET_NAME" \
+                     subnetname="$SUBNET_NAME" \
+                     name="$VMSS_NAME" \
+                     adminPassword="$ADMIN_PASSWORD" \
+                     vnetrgname="$RESOURCE_GROUP" \
+                     vmsssku="Standard_E8s_v3" \
+                     location="eastus2" \
+                     extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
+    wait
+done
+
 # # Wait for all background processes to complete
 # wait
 
@@ -156,8 +178,9 @@ VMSS_NAMES=("dncpool12" "linuxpool12")
 
 # echo "All nodes are ready and joined to the AKS cluster."
 
-# Promote one of the VMSS to be a user pool
-kubectl label node linuxpool12000000 kubernetes.azure.com/mode=user --overwrite
+# # Promote one of the VMSS to be a user pool
+# kubectl label node linuxpool12000000 kubernetes.azure.com/mode=user --overwrite
+# kubectl label node linuxpool12000000 kubernetes.azure.com/mode=user --overwrite
 
 
 # # install cns and cni
@@ -179,22 +202,25 @@ kubectl label node linuxpool12000000 kubernetes.azure.com/mode=user --overwrite
 
 # echo "Deployment completed successfully!"
 
-# Label the nodes to specify the type
-kubectl label node linuxpool12000000 node-type=cnscni
-kubectl label node dncpool12000000 node-type=dnc
+# # Label the nodes to specify the type
+# kubectl label node linuxpool12000000 node-type=cnscni
+# kubectl label node dncpool12000000 node-type=dnc
 
-echo "Deploying azure_cns_configmap.yaml to namespace default..."
-kubectl apply -f azure_cns_configmap.yaml -n default
+# echo "Deploying azure_cns_configmap.yaml to namespace default..."
+# kubectl apply -f azure_cns_configmap.yaml -n default
 
-# Deploy the DaemonSet
-echo "Deploying azure_cns_daemonset.yaml to namespace default..."
-kubectl apply -f azure_cns_daemonset.yaml -n default
+# # Deploy the DaemonSet
+# echo "Deploying azure_cns_daemonset.yaml to namespace default..."
+# kubectl apply -f azure_cns_daemonset.yaml -n default
 
-echo "Deploying dnc_configmap.yaml to namespace default..."
-kubectl apply -f dnc_configmap.yaml -n default
+# echo "Deploying dnc_configmap.yaml to namespace default..."
+# kubectl apply -f dnc_configmap.yaml -n default
 
-echo "Deploying dnc_deployment.yaml to namespace default..."
-kubectl apply -f dnc_deployment.yaml -n default
+# echo "Deploying dnc_deployment.yaml to namespace default..."
+# # TODO: deploy DNC needs to assign MI that can access DB to the dnc node
+# kubectl apply -f dnc_deployment.yaml -n default
+
+
 
 # # Variables for new image values
 # NEW_INIT_CONTAINER_IMAGE="mcr.microsoft.com/containernetworking/azure-cni:v1.6.0"
@@ -230,6 +256,6 @@ kubectl apply -f dnc_deployment.yaml -n default
 #     delete_node_pool "$NODE_POOL"
 # done
 
-# Verify the remaining node pools
-echo "Remaining node pools in the cluster:"
-az aks nodepool list --resource-group "$RESOURCE_GROUP" --cluster-name "$CLUSTER_NAME" -o table
+# # Verify the remaining node pools
+# echo "Remaining node pools in the cluster:"
+# az aks nodepool list --resource-group "$RESOURCE_GROUP" --cluster-name "$CLUSTER_NAME" -o table
