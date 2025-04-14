@@ -137,7 +137,7 @@ VMSS_NAMES=("dncpool12" "linuxpool12")
 
 WORKER_VMSS=("linuxpool121")
 # Loop through VMSS names and create VMSS
-for VMSS_NAME in "${VMSS_NAMES[@]}"; do
+for VMSS_NAME in "${WORKER_VMSS[@]}"; do
     EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
     echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
 
