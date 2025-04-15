@@ -1,4 +1,5 @@
-az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$CLUSTER_NAME" --overwrite-existing  --admin || exit 1
+echo "auth to aks..."
+az aks get-credentials --resource-group dala-aks-runner7 --name aks --overwrite-existing  --admin || exit 1
 
 NAMESPACE="default"  # Replace with the namespace of the DNC deployment
 LABEL_SELECTOR="app=dnc"  # Replace with the label selector for the DNC pod
