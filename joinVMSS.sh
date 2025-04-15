@@ -112,7 +112,7 @@ fi
 
 
 # Define VMSS names
-VMSS_NAMES=("dncpool12" "linuxpool12")
+# VMSS_NAMES=("dncpool12" "linuxpool12")
 
 # # Loop through VMSS names and create VMSS
 # for VMSS_NAME in "${VMSS_NAMES[@]}"; do
@@ -180,7 +180,7 @@ VMSS_NAMES=("dncpool12" "linuxpool12")
 
 # # Promote one of the VMSS to be a user pool
 # kubectl label node linuxpool12000000 kubernetes.azure.com/mode=user --overwrite
-kubectl label node linuxpool121000000 kubernetes.azure.com/mode=user --overwrite
+# kubectl label node linuxpool121000000 kubernetes.azure.com/mode=user --overwrite
 
 
 # # install cns and cni
@@ -205,46 +205,105 @@ kubectl label node linuxpool121000000 kubernetes.azure.com/mode=user --overwrite
 # # Label the nodes to specify the type
 # kubectl label node linuxpool12000000 node-type=cnscni
 # kubectl label node dncpool12000000 node-type=dnc
-kubectl label node linuxpool121000000 node-type=cnscni
+# kubectl label node linuxpool121000000 node-type=cnscni
 
-echo "Deploying azure_cns_configmap.yaml to namespace default..."
-kubectl apply -f azure_cns_configmap.yaml -n default
+# echo "Deploying azure_cns_configmap.yaml to namespace default..."
+# kubectl apply -f azure_cns_configmap.yaml -n default
 
-# Deploy the DaemonSet
-echo "Deploying azure_cns_daemonset.yaml to namespace default..."
-kubectl apply -f azure_cns_daemonset.yaml -n default
+# # Deploy the DaemonSet
+# echo "Deploying azure_cns_daemonset.yaml to namespace default..."
+# kubectl apply -f azure_cns_daemonset.yaml -n default
 
-echo "Deploying dnc_configmap.yaml to namespace default..."
-kubectl apply -f dnc_configmap.yaml -n default
+# echo "Deploying dnc_configmap.yaml to namespace default..."
+# kubectl apply -f dnc_configmap.yaml -n default
 
-echo "Deploying dnc_deployment.yaml to namespace default..."
-# TODO: deploy DNC needs to assign MI that can access DB to the dnc node
-kubectl apply -f dnc_deployment.yaml -n default
+# echo "Deploying dnc_deployment.yaml to namespace default..."
+# # TODO: deploy DNC needs to assign MI that can access DB to the dnc node
+# kubectl apply -f dnc_deployment.yaml -n default
+
+# # Label the nodes to specify the cx
+# kubectl label node linuxpool12000000 cx=vm1
+# kubectl label node linuxpool121000000 cx=vm2
+
+# echo "Deploying container1.yaml to node cx=vm1..."
+# kubectl apply -f container1.yaml -n default
+
+# echo "Deploying container2.yaml to node cx=vm2..."
+# kubectl apply -f container2.yaml -n default
+
+#########################################################################
+# Port Forwarding to DNC
+# Variables
+NAMESPACE="default"  # Replace with the namespace of the DNC deployment
+LABEL_SELECTOR="app=dnc"  # Replace with the label selector for the DNC pod
+LOCAL_PORT=9000  # Local port to forward
+REMOTE_PORT=9000  # Pod's port to forward
+##KUBECONFIG_PATH="${KUBECONFIG:-~/.kube/config}"  # Path to kubeconfig file
+
+# Find the DNC pod name
+DNC_POD=$(kubectl get pods -n "$NAMESPACE" -l "$LABEL_SELECTOR" -o jsonpath='{.items[0].metadata.name}')
+if [[ -z "$DNC_POD" ]]; then
+  echo "Error: No pod found with label selector $LABEL_SELECTOR in namespace $NAMESPACE"
+  exit 1
+fi
+
+echo "Found DNC pod: $DNC_POD"
+
+# Start port forwarding
+echo "Starting port forwarding from localhost:$LOCAL_PORT to $DNC_POD:$REMOTE_PORT..."
+kubectl port-forward -n "$NAMESPACE" pod/"$DNC_POD" "$LOCAL_PORT:$REMOTE_PORT" &
+PORT_FORWARD_PID=$!
+
+# Wait for port forwarding to establish
+sleep 5
+
+# Check if the port forwarding process is running
+if ! ps -p $PORT_FORWARD_PID > /dev/null; then
+  echo "Error: Port forwarding failed to start"
+  exit 1
+fi
+
+# Log the forwarded URL
+DNC_URL="http://localhost:$LOCAL_PORT"
+echo "Successfully port forwarded to DNC: $DNC_URL"
 
 
+# Register node with DNC
+# Variables
+DNC_ENDPOINT=$DNC_URL #"https://10.224.0.65:9000"  # Replace with the actual DNC endpoint
+NODE_ID="dncpool12000000"                 # Replace with the actual Node ID
+NODE_API="$DNC_ENDPOINT/nodes/$NODE_ID?api-version=2018-03-01"
+JSON_CONTENT_TYPE="application/json"
 
+# Node information payload
+NODE_INFO_JSON=$(cat <<EOF
+{
+  "IPAddresses": "10.224.0.69",
+  "OrchestratorType": "Kubernetes",
+  "InfrastructureNetwork": "cd28d33f-1589-44d3-98a4-7cc84d03d6d4",
+  "AZID": "",
+  "NodeType": "",
+  "NodeSet": "",
+  "NumCores": "0",
+  "DualstackEnabled": "false"
+}
+EOF
+)
 
-# NODE_POOLS_TO_DELETE=("dncpool0" "linuxpool0")  # List of node pools to delete
-# # Function to delete a node pool
-# delete_node_pool() {
-#     local node_pool_name=$1
-#     echo "Deleting node pool: $node_pool_name from AKS cluster: $AKS_CLUSTER_NAME in resource group: $RESOURCE_GROUP..."
-    
-#     # Delete the node pool
-#     az aks nodepool delete \
-#         --resource-group "$RESOURCE_GROUP" \
-#         --cluster-name "$CLUSTER_NAME" \
-#         --name "$node_pool_name" \
-#         --yes
+# Send HTTP POST request to add the node
+response=$(curl -s -w "%{http_code}" -o /tmp/add_node_response.json -X POST "$NODE_API" \
+  -H "Content-Type: $JSON_CONTENT_TYPE" \
+  -d "$NODE_INFO_JSON")
 
-#     echo "Node pool $node_pool_name deleted successfully."
-# }
+# Extract HTTP status code
+http_status=$(tail -n1 <<< "$response")
 
-# # Loop through the node pools and delete them
-# for NODE_POOL in "${NODE_POOLS_TO_DELETE[@]}"; do
-#     delete_node_pool "$NODE_POOL"
-# done
+# Check if the request was successful
+if [[ "$http_status" -ne 200 ]]; then
+  echo "Failed to add node. HTTP status: $http_status"
+  cat /tmp/add_node_response.json
+  exit 1
+fi
 
-# # Verify the remaining node pools
-# echo "Remaining node pools in the cluster:"
-# az aks nodepool list --resource-group "$RESOURCE_GROUP" --cluster-name "$CLUSTER_NAME" -o table
+echo "Node added successfully!"
+cat /tmp/add_node_response.json
