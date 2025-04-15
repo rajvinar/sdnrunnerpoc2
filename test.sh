@@ -12,7 +12,7 @@ echo "Starting port forwarding from localhost:$LOCAL_PORT to $DNC_POD:$REMOTE_PO
 kubectl port-forward -n "$NAMESPACE" pod/"$DNC_POD" "$LOCAL_PORT:$REMOTE_PORT" & PORT_FORWARD_PID=$!
 
 # Wait for port forwarding to establish
-sleep 5
+sleep 20
 
 # Check if the port forwarding process is running
 if ! ps -p $PORT_FORWARD_PID > /dev/null; then
