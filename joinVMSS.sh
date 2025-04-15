@@ -275,7 +275,7 @@ REMOTE_PORT=9000  # Pod's port to forward
 
 # echo "Found DNC pod: $DNC_POD"
 
-$DNC_POD="dnc-7b76546bfd-kcc4d"
+DNC_POD="dnc-7b76546bfd-kcc4d"
 
 # Start port forwarding
 echo "Starting port forwarding from localhost:$LOCAL_PORT to $DNC_POD:$REMOTE_PORT..."
