@@ -15,7 +15,7 @@ kubectl port-forward -n "$NAMESPACE" pod/"$DNC_POD" "$LOCAL_PORT:$REMOTE_PORT" &
 sleep 20
 
 # Check if the port forwarding process is running
-if ! ps -p $PORT_FORWARD_PID > /dev/null; then
+if ! kill -0 $PORT_FORWARD_PID 2>/dev/null; then
   echo "Error: Port forwarding failed to start"
   exit 1
 fi
@@ -30,7 +30,7 @@ echo "Stopping port forwarding..."
 kill $PORT_FORWARD_PID
 
 # Verify the process has stopped
-if ps -p $PORT_FORWARD_PID > /dev/null; then
+if kill -0 $PORT_FORWARD_PID 2>/dev/null; then
   echo "Error: Failed to stop port forwarding"
   exit 1
 fi
