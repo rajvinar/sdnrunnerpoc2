@@ -29,6 +29,8 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 echo "Stopping port forwarding..."
 kill $PORT_FORWARD_PID
 
+sleep 20
+
 # Verify the process has stopped
 if kill -0 $PORT_FORWARD_PID 2>/dev/null; then
   echo "Error: Failed to stop port forwarding"
