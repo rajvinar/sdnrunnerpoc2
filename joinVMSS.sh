@@ -259,41 +259,41 @@ fi
 # echo "All nodes have been successfully labeled."
 
 ######################## Port Forwarding to DNC ########################
-# Variables
-NAMESPACE="default"  # Replace with the namespace of the DNC deployment
-LABEL_SELECTOR="app=dnc"  # Replace with the label selector for the DNC pod
-LOCAL_PORT=9000  # Local port to forward
-REMOTE_PORT=9000  # Pod's port to forward
-DNC_POD="dnc-7b76546bfd-kcc4d"
+# # Variables
+# NAMESPACE="default"  # Replace with the namespace of the DNC deployment
+# LABEL_SELECTOR="app=dnc"  # Replace with the label selector for the DNC pod
+# LOCAL_PORT=9000  # Local port to forward
+# REMOTE_PORT=9000  # Pod's port to forward
+# DNC_POD="dnc-7b76546bfd-kcc4d"
 
-# # Find the DNC pod name
-# DNC_POD=$(kubectl get pods -n "$NAMESPACE" -l "$LABEL_SELECTOR" -o jsonpath='{.items[0].metadata.name}')
-# if [[ -z "$DNC_POD" ]]; then
-#   echo "Error: No pod found with label selector $LABEL_SELECTOR in namespace $NAMESPACE"
+# # # Find the DNC pod name
+# # DNC_POD=$(kubectl get pods -n "$NAMESPACE" -l "$LABEL_SELECTOR" -o jsonpath='{.items[0].metadata.name}')
+# # if [[ -z "$DNC_POD" ]]; then
+# #   echo "Error: No pod found with label selector $LABEL_SELECTOR in namespace $NAMESPACE"
+# #   exit 1
+# # fi
+
+# # echo "Found DNC pod: $DNC_POD"
+
+
+
+# # Start port forwarding
+# echo "Starting port forwarding from localhost:$LOCAL_PORT to $DNC_POD:$REMOTE_PORT..."
+# kubectl port-forward -n "$NAMESPACE" pod/"$DNC_POD" "$LOCAL_PORT:$REMOTE_PORT" &
+# PORT_FORWARD_PID=$!
+
+# # Wait for port forwarding to establish
+# sleep 5
+
+# # Check if the port forwarding process is running
+# if ! ps -p $PORT_FORWARD_PID > /dev/null; then
+#   echo "Error: Port forwarding failed to start"
 #   exit 1
 # fi
 
-# echo "Found DNC pod: $DNC_POD"
-
-
-
-# Start port forwarding
-echo "Starting port forwarding from localhost:$LOCAL_PORT to $DNC_POD:$REMOTE_PORT..."
-kubectl port-forward -n "$NAMESPACE" pod/"$DNC_POD" "$LOCAL_PORT:$REMOTE_PORT" &
-PORT_FORWARD_PID=$!
-
-# Wait for port forwarding to establish
-sleep 5
-
-# Check if the port forwarding process is running
-if ! ps -p $PORT_FORWARD_PID > /dev/null; then
-  echo "Error: Port forwarding failed to start"
-  exit 1
-fi
-
-# Log the forwarded URL
-DNC_URL="http://localhost:$LOCAL_PORT"
-echo "Successfully port forwarded to DNC: $DNC_URL"
+# # Log the forwarded URL
+# DNC_URL="http://localhost:$LOCAL_PORT"
+# echo "Successfully port forwarded to DNC: $DNC_URL"
 
 
 
