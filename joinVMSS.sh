@@ -233,30 +233,30 @@ fi
 
 #########################################################################
 ########################### Label data plane nodes ###########################
-# Variables
-NODE_LABEL_KEY="dncnode"  # Key for the label
+# # Variables
+# NODE_LABEL_KEY="dncnode"  # Key for the label
 
-# Function to label a node
-label_node() {
-  local node_name=$1
-  local label_key=$2
-  local label_value=$3
+# # Function to label a node
+# label_node() {
+#   local node_name=$1
+#   local label_key=$2
+#   local label_value=$3
 
-  echo "Labeling node: $node_name with label: $label_key=$label_value"
-  kubectl label node "$node_name" "$label_key=$label_value" --overwrite
-  echo "Successfully labeled node: $node_name with label: $label_key=$label_value"
-}
+#   echo "Labeling node: $node_name with label: $label_key=$label_value"
+#   kubectl label node "$node_name" "$label_key=$label_value" --overwrite
+#   echo "Successfully labeled node: $node_name with label: $label_key=$label_value"
+# }
 
-# Get the list of nodes to label
-# Replace this with your logic to fetch node names dynamically
-NODE_NAMES=("linuxpool12000000" "linuxpool121000000")
+# # Get the list of nodes to label
+# # Replace this with your logic to fetch node names dynamically
+# NODE_NAMES=("linuxpool12000000" "linuxpool121000000")
 
-# Label each node
-for NODE_NAME in $NODE_NAMES; do
-  label_node "$NODE_NAME" "$NODE_LABEL_KEY" "$NODE_NAME"
-done
+# # Label each node
+# for NODE_NAME in $NODE_NAMES; do
+#   label_node "$NODE_NAME" "$NODE_LABEL_KEY" "$NODE_NAME"
+# done
 
-echo "All nodes have been successfully labeled."
+# echo "All nodes have been successfully labeled."
 
 ######################## Port Forwarding to DNC ########################
 # Variables
@@ -277,23 +277,23 @@ DNC_POD="dnc-7b76546bfd-kcc4d"
 
 
 
-# # Start port forwarding
-# echo "Starting port forwarding from localhost:$LOCAL_PORT to $DNC_POD:$REMOTE_PORT..."
-# kubectl port-forward -n "$NAMESPACE" pod/"$DNC_POD" "$LOCAL_PORT:$REMOTE_PORT" &
-# PORT_FORWARD_PID=$!
+# Start port forwarding
+echo "Starting port forwarding from localhost:$LOCAL_PORT to $DNC_POD:$REMOTE_PORT..."
+kubectl port-forward -n "$NAMESPACE" pod/"$DNC_POD" "$LOCAL_PORT:$REMOTE_PORT" &
+PORT_FORWARD_PID=$!
 
-# # Wait for port forwarding to establish
-# sleep 5
+# Wait for port forwarding to establish
+sleep 5
 
-# # Check if the port forwarding process is running
-# if ! ps -p $PORT_FORWARD_PID > /dev/null; then
-#   echo "Error: Port forwarding failed to start"
-#   exit 1
-# fi
+# Check if the port forwarding process is running
+if ! ps -p $PORT_FORWARD_PID > /dev/null; then
+  echo "Error: Port forwarding failed to start"
+  exit 1
+fi
 
-# # Log the forwarded URL
-# DNC_URL="http://localhost:$LOCAL_PORT"
-# echo "Successfully port forwarded to DNC: $DNC_URL"
+# Log the forwarded URL
+DNC_URL="http://localhost:$LOCAL_PORT"
+echo "Successfully port forwarded to DNC: $DNC_URL"
 
 
 
