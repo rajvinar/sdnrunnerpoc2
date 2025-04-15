@@ -267,6 +267,32 @@ fi
 DNC_URL="http://localhost:$LOCAL_PORT"
 echo "Successfully port forwarded to DNC: $DNC_URL"
 
+# Label data plane nodes
+# Variables
+NAMESPACE="default"  # Replace with your namespace
+NODE_LABEL_KEY="dncnode"  # Key for the label
+
+# Function to label a node
+label_node() {
+  local node_name=$1
+  local label_key=$2
+  local label_value=$3
+
+  echo "Labeling node: $node_name with label: $label_key=$label_value"
+  kubectl label node "$node_name" "$label_key=$label_value" --overwrite
+  echo "Successfully labeled node: $node_name with label: $label_key=$label_value"
+}
+
+# Get the list of nodes to label
+# Replace this with your logic to fetch node names dynamically
+NODE_NAMES=("linuxpool12000000" "linuxpool121000000")
+
+# Label each node
+for NODE_NAME in $NODE_NAMES; do
+  label_node "$NODE_NAME" "$NODE_LABEL_KEY" "$NODE_NAME"
+done
+
+echo "All nodes have been successfully labeled."
 
 # Register node with DNC
 # Variables
@@ -307,3 +333,17 @@ fi
 
 echo "Node added successfully!"
 cat /tmp/add_node_response.json
+
+
+
+# Stop port forwarding
+echo "Stopping port forwarding..."
+kill $PORT_FORWARD_PID
+
+# Verify the process has stopped
+if ps -p $PORT_FORWARD_PID > /dev/null; then
+  echo "Error: Failed to stop port forwarding"
+  exit 1
+fi
+
+echo "Port forwarding stopped successfully."
