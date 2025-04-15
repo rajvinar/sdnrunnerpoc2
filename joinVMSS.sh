@@ -294,7 +294,7 @@ fi
 # # Log the forwarded URL
 # DNC_URL="http://localhost:$LOCAL_PORT"
 # echo "Successfully port forwarded to DNC: $DNC_URL"
-
+NAMESPACE="default"
 LABEL_SELECTOR="app=dnc"  # Replace with the label selector for the DNC pod
 LOCAL_PORT=9000  # Local port to forward
 REMOTE_PORT=9000  # Pod's port to forward
