@@ -67,7 +67,7 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 ################ Join vnet ################
 NETWORK_ID="10177921-2ed7-464c-be21-661407a1e10f"
 DNC_ENDPOINT=$DNC_URL
-RETRY_COUNT=20  # Number of retry attempts
+RETRY_COUNT=100  # Number of retry attempts
 RETRY_DELAY=3  # Delay between retries in seconds
 
 add_vnet() {
