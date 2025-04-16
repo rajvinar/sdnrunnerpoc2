@@ -130,23 +130,23 @@ check_vnet_status() {
   echo "VNet $NETWORK_ID is in 'Completed' status."
 }
 
-# Retry logic for adding the VNet
-attempt=1
-while [[ $attempt -le $RETRY_COUNT ]]; do
-  if add_vnet; then
-    echo "Add VNet succeeded on attempt $attempt."
-    break
-  fi
+# # Retry logic for adding the VNet
+# attempt=1
+# while [[ $attempt -le $RETRY_COUNT ]]; do
+#   if add_vnet; then
+#     echo "Add VNet succeeded on attempt $attempt."
+#     break
+#   fi
 
-  echo "Add VNet failed on attempt $attempt. Retrying in $RETRY_DELAY seconds..."
-  sleep $RETRY_DELAY
-  attempt=$((attempt + 1))
-done
+#   echo "Add VNet failed on attempt $attempt. Retrying in $RETRY_DELAY seconds..."
+#   sleep $RETRY_DELAY
+#   attempt=$((attempt + 1))
+# done
 
-if [[ $attempt -gt $RETRY_COUNT ]]; then
-  echo "Failed to add VNet after $RETRY_COUNT attempts."
-  exit 1
-fi
+# if [[ $attempt -gt $RETRY_COUNT ]]; then
+#   echo "Failed to add VNet after $RETRY_COUNT attempts."
+#   exit 1
+# fi
 
 # Retry logic for checking the VNet status
 attempt=1
