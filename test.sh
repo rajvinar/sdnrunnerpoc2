@@ -40,8 +40,8 @@ NODE_INFO_JSON=$(cat <<EOF
   "AZID": "",
   "NodeType": "",
   "NodeSet": "",
-  "NumCores": "0",
-  "DualstackEnabled": "false"
+  "NumCores": 8,
+  "DualstackEnabled": false
 }
 EOF
 )
