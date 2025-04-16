@@ -65,9 +65,15 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 # cat /tmp/add_node_response.json
 
 ################ Join vnet ################
-DNC_ENDPOINT=$DNC_URL #"https://10.224.0.65:9000"  # Replace with the actual DNC endpoint
-NETWORK_ID="10177921-2ed7-464c-be21-661407a1e10f"  # Replace with your network ID
-NETWORK_TYPE="AzureNet" 
+NETWORK_ID="10177921-2ed7-464c-be21-661407a1e10f"
+DNC_ENDPOINT=$DNC_URL
+RETRY_COUNT=20  # Number of retry attempts
+RETRY_DELAY=3  # Delay between retries in seconds
+
+add_vnet() {
+  #DNC_ENDPOINT=$DNC_URL #"https://10.224.0.65:9000"  # Replace with the actual DNC endpoint
+  #NETWORK_ID="10177921-2ed7-464c-be21-661407a1e10f"  # Replace with your network ID
+  NETWORK_TYPE="AzureNet" 
 
   network_request=$(cat <<EOF
 {
@@ -88,13 +94,76 @@ EOF
 
   # Check if the request was successful
   if [[ "$http_status" -ne 200 ]]; then
-    echo "Failed to add network $network_id. HTTP status: $http_status"
+    echo "Failed to add network $NETWORK_ID. HTTP status: $http_status"
     cat /tmp/add_network_response.json
     exit 1
   fi
 
-  echo "Successfully added network $network_id."
+  echo "Successfully added network $NETWORK_ID."
   cat /tmp/add_network_response.json
+}
+
+check_vnet_status() {
+  echo "Checking status of VNet: $NETWORK_ID"
+
+  # Send the GET request to check the VNet status
+  response=$(curl -s -w "%{http_code}" -o /tmp/vnet_status_response.json -X GET "$DNC_ENDPOINT/networks/$NETWORK_ID/status?api-version=2018-03-01" \
+    -H "Content-Type: application/json")
+
+  # Extract HTTP status code
+  http_status=$(tail -n1 <<< "$response")
+
+  # Check if the request was successful
+  if [[ "$http_status" -ne 200 ]]; then
+    echo "Failed to get status for VNet $NETWORK_ID. HTTP status: $http_status"
+    cat /tmp/vnet_status_response.json
+    return 1
+  fi
+
+  # Parse the status from the response
+  vnet_status=$(jq -r '.Status' /tmp/vnet_status_response.json)
+  if [[ "$vnet_status" != "Completed" ]]; then
+    echo "VNet $NETWORK_ID is not in 'Completed' status. Current status: $vnet_status"
+    return 1
+  fi
+
+  echo "VNet $NETWORK_ID is in 'Completed' status."
+}
+
+# Retry logic for adding the VNet
+attempt=1
+while [[ $attempt -le $RETRY_COUNT ]]; do
+  if add_vnet; then
+    echo "Add VNet succeeded on attempt $attempt."
+    break
+  fi
+
+  echo "Add VNet failed on attempt $attempt. Retrying in $RETRY_DELAY seconds..."
+  sleep $RETRY_DELAY
+  attempt=$((attempt + 1))
+done
+
+if [[ $attempt -gt $RETRY_COUNT ]]; then
+  echo "Failed to add VNet after $RETRY_COUNT attempts."
+  exit 1
+fi
+
+# Retry logic for checking the VNet status
+attempt=1
+while [[ $attempt -le $RETRY_COUNT ]]; do
+  if check_vnet_status; then
+    echo "VNet status check succeeded on attempt $attempt."
+    exit 0
+  fi
+
+  echo "VNet status check failed on attempt $attempt. Retrying in $RETRY_DELAY seconds..."
+  sleep $RETRY_DELAY
+  attempt=$((attempt + 1))
+done
+
+echo "Failed to verify VNet status after $RETRY_COUNT attempts."
+exit 1
+
 
 
 ############ Stop port forwarding after the operation #############
