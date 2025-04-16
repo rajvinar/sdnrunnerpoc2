@@ -34,7 +34,7 @@ JSON_CONTENT_TYPE="application/json"
 # Node information payload
 NODE_INFO_JSON=$(cat <<EOF
 {
-  "IPAddresses": "10.224.0.69",
+  "IPAddresses": ["10.224.0.69"],
   "OrchestratorType": "Kubernetes",
   "InfrastructureNetwork": "cd28d33f-1589-44d3-98a4-7cc84d03d6d4",
   "AZID": "",
