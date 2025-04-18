@@ -110,59 +110,59 @@ fi
 #         helm install -n kube-system base9 ./chart --set installCniPlugins.enabled=true --set cilium.enabled=false --set azurecnsUnmanaged.enabled=true --set wiImageCredProvider.enabled=false --set azurecnsUnmanaged.version=v1.6.23 --set azurecnsUnmanaged.versionWindows=v1.6.23
 
 
-# Define VMSS names
-VMSS_NAMES=("dncpool12" "linuxpool12")
+# # Define VMSS names
+# VMSS_NAMES=("dncpool12" "linuxpool12")
 
-# Loop through VMSS names and create VMSS
-for VMSS_NAME in "${VMSS_NAMES[@]}"; do
-    EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
-    echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
+# # Loop through VMSS names and create VMSS
+# for VMSS_NAME in "${VMSS_NAMES[@]}"; do
+#     EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
+#     echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
 
-    az deployment group create \
-        --name "vmss-deployment-${VMSS_NAME}" \
-        --resource-group "$RESOURCE_GROUP" \
-        --template-file "$BICEP_TEMPLATE_PATH" \
-        --parameters vnetname="$VNET_NAME" \
-                     subnetname="$SUBNET_NAME" \
-                     name="$VMSS_NAME" \
-                     adminPassword="$ADMIN_PASSWORD" \
-                     vnetrgname="$RESOURCE_GROUP" \
-                     vmsssku="Standard_E8s_v3" \
-                     location="westus" \
-                     extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
-    wait
-done
+#     az deployment group create \
+#         --name "vmss-deployment-${VMSS_NAME}" \
+#         --resource-group "$RESOURCE_GROUP" \
+#         --template-file "$BICEP_TEMPLATE_PATH" \
+#         --parameters vnetname="$VNET_NAME" \
+#                      subnetname="$SUBNET_NAME" \
+#                      name="$VMSS_NAME" \
+#                      adminPassword="$ADMIN_PASSWORD" \
+#                      vnetrgname="$RESOURCE_GROUP" \
+#                      vmsssku="Standard_E8s_v3" \
+#                      location="westus" \
+#                      extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
+#     wait
+# done
 
 
-WORKER_VMSS=("linuxpool121")
-# Loop through VMSS names and create VMSS
-for VMSS_NAME in "${WORKER_VMSS[@]}"; do
-    EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
-    echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
+# WORKER_VMSS=("linuxpool121")
+# # Loop through VMSS names and create VMSS
+# for VMSS_NAME in "${WORKER_VMSS[@]}"; do
+#     EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
+#     echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
 
-    az deployment group create \
-        --name "vmss-deployment-${VMSS_NAME}" \
-        --resource-group "$RESOURCE_GROUP" \
-        --template-file "$BICEP_TEMPLATE_PATH" \
-        --parameters vnetname="$VNET_NAME" \
-                     subnetname="$SUBNET_NAME" \
-                     name="$VMSS_NAME" \
-                     adminPassword="$ADMIN_PASSWORD" \
-                     vnetrgname="$RESOURCE_GROUP" \
-                     vmsssku="Standard_E8s_v3" \
-                     location="westus" \
-                     extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
-    wait
-done
+#     az deployment group create \
+#         --name "vmss-deployment-${VMSS_NAME}" \
+#         --resource-group "$RESOURCE_GROUP" \
+#         --template-file "$BICEP_TEMPLATE_PATH" \
+#         --parameters vnetname="$VNET_NAME" \
+#                      subnetname="$SUBNET_NAME" \
+#                      name="$VMSS_NAME" \
+#                      adminPassword="$ADMIN_PASSWORD" \
+#                      vnetrgname="$RESOURCE_GROUP" \
+#                      vmsssku="Standard_E8s_v3" \
+#                      location="westus" \
+#                      extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
+#     wait
+# done
 
-# Wait for all background processes to complete
-wait
+# # Wait for all background processes to complete
+# wait
 
-# Display logs for each VMSS deployment
-for VMSS_NAME in "${VMSS_NAMES[@]}"; do
-    echo "Displaying logs for $VMSS_NAME deployment:"
-    cat "./lin-script-${VMSS_NAME}.log"
-done
+# # Display logs for each VMSS deployment
+# for VMSS_NAME in "${VMSS_NAMES[@]}"; do
+#     echo "Displaying logs for $VMSS_NAME deployment:"
+#     cat "./lin-script-${VMSS_NAME}.log"
+# done
 
 # # Verify the nodes are ready
 # echo "Verifying that nodes are ready..."
