@@ -111,7 +111,7 @@ sed "s|__OBJECT_ID__|$OID|g" ./bootstrap-role.yaml | kubectl apply -f -
         helm install -n kube-system base8 ./chart --set installCniPlugins.enabled=true --set cilium.enabled=false --set azurecnsUnmanaged.enabled=true --set wiImageCredProvider.enabled=false --set azurecnsUnmanaged.version=v1.6.23 --set azurecnsUnmanaged.versionWindows=v1.6.23
 
 
-Define VMSS names
+# Define VMSS names
 VMSS_NAMES=("dncpool12" "linuxpool12")
 
 # Loop through VMSS names and create VMSS
