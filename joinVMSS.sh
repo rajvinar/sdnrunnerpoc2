@@ -200,12 +200,12 @@ fi
 # echo "Deploying azure_cns_daemonset.yaml to namespace default..."
 # kubectl apply -f azure_cns_daemonset.yaml -n default
 
-# echo "Deploying dnc_configmap.yaml to namespace default..."
-# kubectl apply -f dnc_configmap.yaml -n default
+echo "Deploying dnc_configmap.yaml to namespace default..."
+kubectl apply -f dnc_configmap_pubsubproxy.yaml -n default
 
-# echo "Deploying dnc_deployment.yaml to namespace default..."
-# # TODO: deploy DNC needs to assign MI that can access DB to the dnc node
-# kubectl apply -f dnc_deployment.yaml -n default
+echo "Deploying dnc_deployment.yaml to namespace default..."
+# TODO: deploy DNC needs to assign MI that can access DB to the dnc node
+kubectl apply -f dnc_deployment.yaml -n default
 
 # # Label the nodes to specify the cx
 # kubectl label node linuxpool12000000 cx=vm1
@@ -427,18 +427,18 @@ fi
 
 
 
-# Variables
-END_TIME=$((SECONDS + 600))  # 30 minutes = 1800 seconds
-INTERVAL=10  # Interval between iterations in seconds
+# # Variables
+# END_TIME=$((SECONDS + 600))  # 30 minutes = 1800 seconds
+# INTERVAL=10  # Interval between iterations in seconds
 
-echo "Starting the loop for 30 minutes..."
+# echo "Starting the loop for 30 minutes..."
 
-# Loop for 30 minutes
-while [ $SECONDS -lt $END_TIME ]; do
-  echo "Running task at $(date)..."
+# # Loop for 30 minutes
+# while [ $SECONDS -lt $END_TIME ]; do
+#   echo "Running task at $(date)..."
 
-  # Wait for the specified interval before the next iteration
-  sleep $INTERVAL
-done
+#   # Wait for the specified interval before the next iteration
+#   sleep $INTERVAL
+# done
 
-echo "Loop completed after 30 minutes."
+# echo "Loop completed after 30 minutes."
