@@ -106,64 +106,64 @@ if ! command -v helm &> /dev/null; then
     helm version
 fi
 
-# sed "s|__OBJECT_ID__|$OID|g" ./bootstrap-role.yaml | kubectl apply -f -
-#         echo "installing azure cni and cns."
-#         helm install -n kube-system base8 ./chart --set installCniPlugins.enabled=true --set cilium.enabled=false --set azurecnsUnmanaged.enabled=true --set wiImageCredProvider.enabled=false --set azurecnsUnmanaged.version=v1.6.23 --set azurecnsUnmanaged.versionWindows=v1.6.23
+sed "s|__OBJECT_ID__|$OID|g" ./bootstrap-role.yaml | kubectl apply -f -
+        echo "installing azure cni and cns."
+        helm install -n kube-system base8 ./chart --set installCniPlugins.enabled=true --set cilium.enabled=false --set azurecnsUnmanaged.enabled=true --set wiImageCredProvider.enabled=false --set azurecnsUnmanaged.version=v1.6.23 --set azurecnsUnmanaged.versionWindows=v1.6.23
 
 
-# Define VMSS names
-# VMSS_NAMES=("dncpool12" "linuxpool12")
+Define VMSS names
+VMSS_NAMES=("dncpool12" "linuxpool12")
 
-# # Loop through VMSS names and create VMSS
-# for VMSS_NAME in "${VMSS_NAMES[@]}"; do
-#     EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
-#     echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
+# Loop through VMSS names and create VMSS
+for VMSS_NAME in "${VMSS_NAMES[@]}"; do
+    EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
+    echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
 
-#     az deployment group create \
-#         --name "vmss-deployment-${VMSS_NAME}" \
-#         --resource-group "$RESOURCE_GROUP" \
-#         --template-file "$BICEP_TEMPLATE_PATH" \
-#         --parameters vnetname="$VNET_NAME" \
-#                      subnetname="$SUBNET_NAME" \
-#                      name="$VMSS_NAME" \
-#                      adminPassword="$ADMIN_PASSWORD" \
-#                      vnetrgname="$RESOURCE_GROUP" \
-#                      vmsssku="Standard_E8s_v3" \
-#                      location="eastus2" \
-#                      extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
-#     wait
-# done
+    az deployment group create \
+        --name "vmss-deployment-${VMSS_NAME}" \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file "$BICEP_TEMPLATE_PATH" \
+        --parameters vnetname="$VNET_NAME" \
+                     subnetname="$SUBNET_NAME" \
+                     name="$VMSS_NAME" \
+                     adminPassword="$ADMIN_PASSWORD" \
+                     vnetrgname="$RESOURCE_GROUP" \
+                     vmsssku="Standard_E8s_v3" \
+                     location="eastus2" \
+                     extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
+    wait
+done
 
 
-# WORKER_VMSS=("linuxpool121")
-# # Loop through VMSS names and create VMSS
-# for VMSS_NAME in "${WORKER_VMSS[@]}"; do
-#     EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
-#     echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
+WORKER_VMSS=("linuxpool121")
+# Loop through VMSS names and create VMSS
+for VMSS_NAME in "${WORKER_VMSS[@]}"; do
+    EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
+    echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
 
-#     az deployment group create \
-#         --name "vmss-deployment-${VMSS_NAME}" \
-#         --resource-group "$RESOURCE_GROUP" \
-#         --template-file "$BICEP_TEMPLATE_PATH" \
-#         --parameters vnetname="$VNET_NAME" \
-#                      subnetname="$SUBNET_NAME" \
-#                      name="$VMSS_NAME" \
-#                      adminPassword="$ADMIN_PASSWORD" \
-#                      vnetrgname="$RESOURCE_GROUP" \
-#                      vmsssku="Standard_E8s_v3" \
-#                      location="eastus2" \
-#                      extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
-#     wait
-# done
+    az deployment group create \
+        --name "vmss-deployment-${VMSS_NAME}" \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file "$BICEP_TEMPLATE_PATH" \
+        --parameters vnetname="$VNET_NAME" \
+                     subnetname="$SUBNET_NAME" \
+                     name="$VMSS_NAME" \
+                     adminPassword="$ADMIN_PASSWORD" \
+                     vnetrgname="$RESOURCE_GROUP" \
+                     vmsssku="Standard_E8s_v3" \
+                     location="eastus2" \
+                     extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
+    wait
+done
 
-# # Wait for all background processes to complete
-# wait
+# Wait for all background processes to complete
+wait
 
-# # Display logs for each VMSS deployment
-# for VMSS_NAME in "${VMSS_NAMES[@]}"; do
-#     echo "Displaying logs for $VMSS_NAME deployment:"
-#     cat "./lin-script-${VMSS_NAME}.log"
-# done
+# Display logs for each VMSS deployment
+for VMSS_NAME in "${VMSS_NAMES[@]}"; do
+    echo "Displaying logs for $VMSS_NAME deployment:"
+    cat "./lin-script-${VMSS_NAME}.log"
+done
 
 # # Verify the nodes are ready
 # echo "Verifying that nodes are ready..."
@@ -178,44 +178,44 @@ fi
 
 # echo "All nodes are ready and joined to the AKS cluster."
 
-# # Promote one of the VMSS to be a user pool
-# kubectl label node linuxpool12000000 kubernetes.azure.com/mode=user --overwrite
-# kubectl label node linuxpool121000000 kubernetes.azure.com/mode=user --overwrite
+# Promote one of the VMSS to be a user pool
+kubectl label node linuxpool12000000 kubernetes.azure.com/mode=user --overwrite
+kubectl label node linuxpool121000000 kubernetes.azure.com/mode=user --overwrite
 
 
-# # install cns and cni
-# echo "Installing Azure CNS and CNI plugins..."
+# install cns and cni
+echo "Installing Azure CNS and CNI plugins..."
 
-# # Label the nodes to specify the type
-# kubectl label node linuxpool12000000 node-type=cnscni
+# Label the nodes to specify the type
+kubectl label node linuxpool12000000 node-type=cnscni
 
-# # Filepath to the YAML file
-# YAML_FILE="azure_cni_daemonset.yaml"
+# Filepath to the YAML file
+YAML_FILE="azure_cni_daemonset.yaml"
 
-# # Deploy the YAML file to the Kubernetes cluster
-# echo "Deploying $YAML_FILE to namespace $NAMESPACE..."
-# kubectl apply -f "$YAML_FILE" -n "$NAMESPACE"
+# Deploy the YAML file to the Kubernetes cluster
+echo "Deploying $YAML_FILE to namespace $NAMESPACE..."
+kubectl apply -f "$YAML_FILE" -n "$NAMESPACE"
 
-# # Verify the deployment
-# echo "Verifying the deployment..."
-# kubectl get daemonset azure-cni -n "$NAMESPACE"
+# Verify the deployment
+echo "Verifying the deployment..."
+kubectl get daemonset azure-cni -n "$NAMESPACE"
 
-# echo "Deployment completed successfully!"
+echo "Deployment completed successfully!"
 
-# # Label the nodes to specify the type
-# kubectl label node linuxpool12000000 node-type=cnscni
-# kubectl label node dncpool12000000 node-type=dnc
-# kubectl label node linuxpool121000000 node-type=cnscni
+# Label the nodes to specify the type
+kubectl label node linuxpool12000000 node-type=cnscni
+kubectl label node dncpool12000000 node-type=dnc
+kubectl label node linuxpool121000000 node-type=cnscni
 
-# echo "Deploying azure_cns_configmap.yaml to namespace default..."
-# kubectl apply -f azure_cns_configmap.yaml -n default
+echo "Deploying azure_cns_configmap.yaml to namespace default..."
+kubectl apply -f azure_cns_configmap.yaml -n default
 
-# # Deploy the DaemonSet
-# echo "Deploying azure_cns_daemonset.yaml to namespace default..."
-# kubectl apply -f azure_cns_daemonset.yaml -n default
+# Deploy the DaemonSet
+echo "Deploying azure_cns_daemonset.yaml to namespace default..."
+kubectl apply -f azure_cns_daemonset.yaml -n default
 
-# echo "Deploying dnc_configmap.yaml to namespace default..."
-# kubectl apply -f dnc_configmap.yaml -n default
+echo "Deploying dnc_configmap.yaml to namespace default..."
+kubectl apply -f dnc_configmap.yaml -n default
 
 # echo "Deploying dnc_deployment.yaml to namespace default..."
 # # TODO: deploy DNC needs to assign MI that can access DB to the dnc node
