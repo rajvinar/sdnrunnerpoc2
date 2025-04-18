@@ -128,7 +128,7 @@ for VMSS_NAME in "${VMSS_NAMES[@]}"; do
                      adminPassword="$ADMIN_PASSWORD" \
                      vnetrgname="$RESOURCE_GROUP" \
                      vmsssku="Standard_E8s_v3" \
-                     location="eastus2" \
+                     location="westus" \
                      extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
     wait
 done
@@ -150,7 +150,7 @@ for VMSS_NAME in "${WORKER_VMSS[@]}"; do
                      adminPassword="$ADMIN_PASSWORD" \
                      vnetrgname="$RESOURCE_GROUP" \
                      vmsssku="Standard_E8s_v3" \
-                     location="eastus2" \
+                     location="westus" \
                      extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
     wait
 done
