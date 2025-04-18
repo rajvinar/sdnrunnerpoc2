@@ -91,7 +91,7 @@ data:
         "EnableHydrateNewAZs": true,
         "ForceAzRehydrateKey": "2022_07_08_1",
         "EnableDecommissionAZs": true,
-        "EnableAZR": ENABLE_AZR_REPLACE
+        "EnableAZR": false
       },
       "HttpClientSettings": {
         "ConnectionTimeout": 5,
