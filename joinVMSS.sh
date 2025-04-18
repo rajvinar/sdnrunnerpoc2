@@ -189,19 +189,6 @@ echo "Installing Azure CNS and CNI plugins..."
 # Label the nodes to specify the type
 kubectl label node linuxpool12000000 node-type=cnscni
 
-# Filepath to the YAML file
-YAML_FILE="azure_cni_daemonset.yaml"
-
-# Deploy the YAML file to the Kubernetes cluster
-echo "Deploying $YAML_FILE to namespace $NAMESPACE..."
-kubectl apply -f "$YAML_FILE" -n "$NAMESPACE"
-
-# Verify the deployment
-echo "Verifying the deployment..."
-kubectl get daemonset azure-cni -n "$NAMESPACE"
-
-echo "Deployment completed successfully!"
-
 # Label the nodes to specify the type
 kubectl label node linuxpool12000000 node-type=cnscni
 kubectl label node dncpool12000000 node-type=dnc
