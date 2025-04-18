@@ -177,39 +177,39 @@ fi
 
 # echo "All nodes are ready and joined to the AKS cluster."
 
-# Promote one of the VMSS to be a user pool
-kubectl label node linuxpool12000000 kubernetes.azure.com/mode=user --overwrite
-kubectl label node linuxpool121000000 kubernetes.azure.com/mode=user --overwrite
+# # Promote one of the VMSS to be a user pool
+# kubectl label node linuxpool12000000 kubernetes.azure.com/mode=user --overwrite
+# kubectl label node linuxpool121000000 kubernetes.azure.com/mode=user --overwrite
 
 
-# install cns and cni
-echo "Installing Azure CNS and CNI plugins..."
+# # install cns and cni
+# echo "Installing Azure CNS and CNI plugins..."
 
-# Label the nodes to specify the type
-kubectl label node linuxpool12000000 node-type=cnscni
+# # Label the nodes to specify the type
+# kubectl label node linuxpool12000000 node-type=cnscni
 
-# Label the nodes to specify the type
-kubectl label node linuxpool12000000 node-type=cnscni
-kubectl label node dncpool12000000 node-type=dnc
-kubectl label node linuxpool121000000 node-type=cnscni
+# # Label the nodes to specify the type
+# kubectl label node linuxpool12000000 node-type=cnscni
+# kubectl label node dncpool12000000 node-type=dnc
+# kubectl label node linuxpool121000000 node-type=cnscni
 
-echo "Deploying azure_cns_configmap.yaml to namespace default..."
-kubectl apply -f azure_cns_configmap.yaml -n default
+# echo "Deploying azure_cns_configmap.yaml to namespace default..."
+# kubectl apply -f azure_cns_configmap.yaml -n default
 
-# Deploy the DaemonSet
-echo "Deploying azure_cns_daemonset.yaml to namespace default..."
-kubectl apply -f azure_cns_daemonset.yaml -n default
+# # Deploy the DaemonSet
+# echo "Deploying azure_cns_daemonset.yaml to namespace default..."
+# kubectl apply -f azure_cns_daemonset.yaml -n default
 
-echo "Deploying dnc_configmap.yaml to namespace default..."
-kubectl apply -f dnc_configmap.yaml -n default
+# echo "Deploying dnc_configmap.yaml to namespace default..."
+# kubectl apply -f dnc_configmap.yaml -n default
 
-# echo "Deploying dnc_deployment.yaml to namespace default..."
-# # TODO: deploy DNC needs to assign MI that can access DB to the dnc node
-# kubectl apply -f dnc_deployment.yaml -n default
+echo "Deploying dnc_deployment.yaml to namespace default..."
+# TODO: deploy DNC needs to assign MI that can access DB to the dnc node
+kubectl apply -f dnc_deployment.yaml -n default
 
-# # Label the nodes to specify the cx
-# kubectl label node linuxpool12000000 cx=vm1
-# kubectl label node linuxpool121000000 cx=vm2
+# Label the nodes to specify the cx
+kubectl label node linuxpool12000000 cx=vm1
+kubectl label node linuxpool121000000 cx=vm2
 
 # echo "Deploying container1.yaml to node cx=vm1..."
 # kubectl apply -f container1.yaml -n default
@@ -219,30 +219,30 @@ kubectl apply -f dnc_configmap.yaml -n default
 
 #########################################################################
 ########################### Label data plane nodes ###########################
-# # Variables
-# NODE_LABEL_KEY="dncnode"  # Key for the label
+# Variables
+NODE_LABEL_KEY="dncnode"  # Key for the label
 
-# # Function to label a node
-# label_node() {
-#   local node_name=$1
-#   local label_key=$2
-#   local label_value=$3
+# Function to label a node
+label_node() {
+  local node_name=$1
+  local label_key=$2
+  local label_value=$3
 
-#   echo "Labeling node: $node_name with label: $label_key=$label_value"
-#   kubectl label node "$node_name" "$label_key=$label_value" --overwrite
-#   echo "Successfully labeled node: $node_name with label: $label_key=$label_value"
-# }
+  echo "Labeling node: $node_name with label: $label_key=$label_value"
+  kubectl label node "$node_name" "$label_key=$label_value" --overwrite
+  echo "Successfully labeled node: $node_name with label: $label_key=$label_value"
+}
 
-# # Get the list of nodes to label
-# # Replace this with your logic to fetch node names dynamically
-# NODE_NAMES=("linuxpool12000000" "linuxpool121000000")
+# Get the list of nodes to label
+# Replace this with your logic to fetch node names dynamically
+NODE_NAMES=("linuxpool12000000" "linuxpool121000000")
 
-# # Label each node
-# for NODE_NAME in $NODE_NAMES; do
-#   label_node "$NODE_NAME" "$NODE_LABEL_KEY" "$NODE_NAME"
-# done
+# Label each node
+for NODE_NAME in $NODE_NAMES; do
+  label_node "$NODE_NAME" "$NODE_LABEL_KEY" "$NODE_NAME"
+done
 
-# echo "All nodes have been successfully labeled."
+echo "All nodes have been successfully labeled."
 
 ######################## Port Forwarding to DNC ########################
 # NAMESPACE="default"
