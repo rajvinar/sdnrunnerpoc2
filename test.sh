@@ -1,11 +1,11 @@
 echo "auth to aks..."
-az aks get-credentials --resource-group dala-aks-runner7 --name aks --overwrite-existing  --admin || exit 1
+az aks get-credentials --resource-group dala-aks-runner8 --name aks --overwrite-existing  --admin || exit 1
 
 NAMESPACE="default"  # Replace with the namespace of the DNC deployment
 LABEL_SELECTOR="app=dnc"  # Replace with the label selector for the DNC pod
 LOCAL_PORT=9000  # Local port to forward
 REMOTE_PORT=9000  # Pod's port to forward
-DNC_POD="dnc-7b76546bfd-kcc4d"
+DNC_POD="dnc-7f75b67795-f59kx"
 
 # Start port forwarding
 echo "Starting port forwarding from localhost:$LOCAL_PORT to $DNC_POD:$REMOTE_PORT..."
@@ -25,44 +25,44 @@ DNC_URL="http://localhost:$LOCAL_PORT"
 echo "Successfully port forwarded to DNC: $DNC_URL"
 
 ###################### Add node to DNC ######################
-# # Variables
-# DNC_ENDPOINT=$DNC_URL #"https://10.224.0.65:9000"  # Replace with the actual DNC endpoint
-# NODE_ID="dncpool12000000"                 # Replace with the actual Node ID
-# NODE_API="$DNC_ENDPOINT/nodes/$NODE_ID?api-version=2018-03-01"
-# JSON_CONTENT_TYPE="application/json"
+# Variables
+DNC_ENDPOINT=$DNC_URL #"https://10.224.0.65:9000"  # Replace with the actual DNC endpoint
+NODE_ID="dncpool12000000"                 # Replace with the actual Node ID
+NODE_API="$DNC_ENDPOINT/nodes/$NODE_ID?api-version=2018-03-01"
+JSON_CONTENT_TYPE="application/json"
 
-# # Node information payload
-# NODE_INFO_JSON=$(cat <<EOF
-# {
-#   "IPAddresses": ["10.224.0.69"],
-#   "OrchestratorType": "Kubernetes",
-#   "InfrastructureNetwork": "cd28d33f-1589-44d3-98a4-7cc84d03d6d4",
-#   "AZID": "",
-#   "NodeType": "",
-#   "NodeSet": "",
-#   "NumCores": 8,
-#   "DualstackEnabled": false
-# }
-# EOF
-# )
+# Node information payload
+NODE_INFO_JSON=$(cat <<EOF
+{
+  "IPAddresses": ["10.224.0.62"],
+  "OrchestratorType": "Kubernetes",
+  "InfrastructureNetwork": "52ebbf7f-eb3b-4eea-8ef6-51fe3e2d8bcd",
+  "AZID": "",
+  "NodeType": "",
+  "NodeSet": "",
+  "NumCores": 8,
+  "DualstackEnabled": false
+}
+EOF
+)
 
-# # Send HTTP POST request to add the node
-# response=$(curl -s -w "%{http_code}" -o /tmp/add_node_response.json -X POST "$NODE_API" \
-#   -H "Content-Type: $JSON_CONTENT_TYPE" \
-#   -d "$NODE_INFO_JSON")
+# Send HTTP POST request to add the node
+response=$(curl -s -w "%{http_code}" -o /tmp/add_node_response.json -X POST "$NODE_API" \
+  -H "Content-Type: $JSON_CONTENT_TYPE" \
+  -d "$NODE_INFO_JSON")
 
-# # Extract HTTP status code
-# http_status=$(tail -n1 <<< "$response")
+# Extract HTTP status code
+http_status=$(tail -n1 <<< "$response")
 
-# # Check if the request was successful
-# if [[ "$http_status" -ne 200 ]]; then
-#   echo "Failed to add node. HTTP status: $http_status"
-#   cat /tmp/add_node_response.json
-#   exit 1
-# fi
+# Check if the request was successful
+if [[ "$http_status" -ne 200 ]]; then
+  echo "Failed to add node. HTTP status: $http_status"
+  cat /tmp/add_node_response.json
+  exit 1
+fi
 
-# echo "Node added successfully!"
-# cat /tmp/add_node_response.json
+echo "Node added successfully!"
+cat /tmp/add_node_response.json
 
 ################ Join vnet ################
 NETWORK_ID="3f84330f-6410-4996-bb28-78513d2eb093"
