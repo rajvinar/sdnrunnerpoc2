@@ -5,7 +5,7 @@ NAMESPACE="default"  # Replace with the namespace of the DNC deployment
 LABEL_SELECTOR="app=dnc"  # Replace with the label selector for the DNC pod
 LOCAL_PORT=9000  # Local port to forward
 REMOTE_PORT=9000  # Pod's port to forward
-DNC_POD="dnc-7f75b67795-f59kx"
+DNC_POD="dnc-7f75b67795-zbvl2"
 
 # Start port forwarding
 echo "Starting port forwarding from localhost:$LOCAL_PORT to $DNC_POD:$REMOTE_PORT..."
