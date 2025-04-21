@@ -156,7 +156,7 @@ fi
 # done
 
 
-SYSTEM_VMSS=("dncpool13, dncpool131")
+SYSTEM_VMSS=("dncpool13" "dncpool131")
 # Loop through VMSS names and create VMSS
 for VMSS_NAME in "${SYSTEM_VMSS[@]}"; do
     EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
