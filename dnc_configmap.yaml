@@ -113,7 +113,7 @@ data:
         "EnableAccelNetworking": true
       },
       "IdentitySettings": {
-        "MSIResourceID": "/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/standalone-nightly-pipeline/providers/Microsoft.ManagedIdentity/userAssignedIdentities/standalone-sub-contributor"
+        "MSIResourceID": "/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/dala-aks-runner8/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aksClusterKubeletIdentity"
       },
       "AzureEnvironment": {
         "EnvironmentName": ""

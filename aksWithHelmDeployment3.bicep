@@ -4,8 +4,8 @@ param clusterName string
 param region string
 @description('Resource Group')
 param rg string
-//@description('Name of the cosmosdb')
-//param cosmosdbName string
+@description('Name of the cosmosdb')
+param cosmosdbName string
 
 @description('Subscription ID')
 param subscriptionId string
@@ -18,6 +18,48 @@ param subnetDelegatorName string = 'subnetdelegator-westus-u3h4j'
 param subnetDelegatorRg string = 'subnetdelegator-westus'
 
 var subnetName = 'infraSubnet'
+
+var dataActions = [
+  'Microsoft.DocumentDB/databaseAccounts/readMetadata'
+  'Microsoft.DocumentDB/databaseAccounts/throughputSettings/*'
+  'Microsoft.DocumentDB/databaseAccounts/tables/write'
+  'Microsoft.DocumentDB/databaseAccounts/tables/containers/write'
+  'Microsoft.DocumentDB/databaseAccounts/tables/containers/executeQuery'
+  'Microsoft.DocumentDB/databaseAccounts/tables/containers/executeStoredProcedure'
+  'Microsoft.DocumentDB/databaseAccounts/tables/containers/entities/*'
+] 
+
+resource customRole 'Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions@2024-12-01-preview' = {
+  name: guid(cosmosdb.id, 'DncCosmosDbRbacRole')
+  parent: cosmosdb
+  properties: {
+    roleName: 'DncCosmosDbRbacRole'
+    type: 'CustomRole'
+    permissions: [
+      {
+        dataActions: dataActions
+      }
+    ]
+    assignableScopes: [
+      '${cosmosdb.id}'
+    ]
+  }
+}
+
+resource aksClusterKubeletIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' existing = {
+  name: 'aksClusterKubeletIdentity'
+  // location: region
+}
+
+resource cosmosdbRoleAssignmentForDNC 'Microsoft.DocumentDB/databaseAccounts/tableRoleAssignments@2024-12-01-preview' = {
+  name: guid(cosmosdb.id, customRole.id, 'aksClusterKubeletIdentity', 'roleAssignment')
+  parent: cosmosdb
+  properties: {
+    principalId: aksClusterKubeletIdentity.properties.principalId
+    roleDefinitionId: customRole.id
+    scope: cosmosdb.id
+  }
+}
 
 resource subnetDelegator 'Microsoft.App/containerApps@2024-10-02-preview' existing = {
   name: subnetDelegatorName
@@ -175,106 +217,109 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2021-08-01' existing = 
 
 resource cluster 'Microsoft.ContainerService/managedClusters@2024-02-01' existing = {
   name: clusterName
-//   location: region
-//   identity: {
-//     type: 'UserAssigned'
-//     userAssignedIdentities: {
-//       '/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/standalone-nightly-pipeline/providers/Microsoft.ManagedIdentity/userAssignedIdentities/standalone-sub-contributor': {}
-//     }
-//   }
-//   properties: {
+  // location: region
+  // identity: {
+  //   type: 'UserAssigned'
+  //   userAssignedIdentities: {
+  //     //'/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/standalone-nightly-pipeline/providers/Microsoft.ManagedIdentity/userAssignedIdentities/standalone-sub-contributor': {}
+  //     // aksClusterKubeletIdentity: {}
+  //     '/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/dala-aks-runner8/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aksClusterKubeletIdentity': {}
+  //   }
+  // }
+  // properties: {
     
 
-//     aadProfile: {
-//       managed: true
-//       enableAzureRBAC: true
-//     }
+  //   aadProfile: {
+  //     managed: true
+  //     enableAzureRBAC: true
+  //   }
 
-//     agentPoolProfiles: [
-//       {
-//         count: 1
-//         enableAutoScaling: false
-//         enableEncryptionAtHost: false
-//         enableNodePublicIP: false
-//         mode: 'System'
-//         name: 'dncpool0'
-//         osType: 'Linux'
-//         type: 'VirtualMachineScaleSets'
-//         vmSize: 'Standard_D2_v2'
-//         vnetSubnetID: infraVnet.properties.subnets[0].id
-//       }
-//       {
-//         count: 1
-//         enableAutoScaling: false
-//         enableEncryptionAtHost: false
-//         enableNodePublicIP: false
-//         mode: 'User'
-//         name: 'linuxpool0'
-//         nodeLabels: {
-//           nchost: 'true'
-//         }
-//         osType: 'Linux'
-//         type: 'VirtualMachineScaleSets'
-//         vmSize: 'Standard_D2_v2'
-//         vnetSubnetID: infraVnet.properties.subnets[0].id
-//       }
-//     ]
-//     dnsPrefix: clusterName
-//     identityProfile: {
-//       kubeletidentity: {
-//         resourceId: '/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/standalone-nightly-pipeline/providers/Microsoft.ManagedIdentity/userAssignedIdentities/standalone-sub-contributor'
-//         clientId: '8134a3dc-ad2c-486b-adeb-a4ff75cb55c5'
-//         objectId: '71c8ae14-0aa4-4962-a1ef-46aff516a9ee'
-//       }
-//     }
-//     networkProfile: {
-//       loadBalancerProfile: {
-//         outboundIPs: {
-//           publicIPs: [
-//             {
-//               id: outboundIp.id
-//             }
-//           ]
-//         }
-//       }
+  //   agentPoolProfiles: [
+  //     {
+  //       count: 1
+  //       enableAutoScaling: false
+  //       enableEncryptionAtHost: false
+  //       enableNodePublicIP: false
+  //       mode: 'System'
+  //       name: 'dncpool0'
+  //       osType: 'Linux'
+  //       type: 'VirtualMachineScaleSets'
+  //       vmSize: 'Standard_D2_v2'
+  //       vnetSubnetID: infraVnet.properties.subnets[0].id
+  //     }
+  //     {
+  //       count: 1
+  //       enableAutoScaling: false
+  //       enableEncryptionAtHost: false
+  //       enableNodePublicIP: false
+  //       mode: 'User'
+  //       name: 'linuxpool0'
+  //       nodeLabels: {
+  //         nchost: 'true'
+  //       }
+  //       osType: 'Linux'
+  //       type: 'VirtualMachineScaleSets'
+  //       vmSize: 'Standard_D2_v2'
+  //       vnetSubnetID: infraVnet.properties.subnets[0].id
+  //     }
+  //   ]
+  //   dnsPrefix: clusterName
+  //   identityProfile: {
+  //     kubeletidentity: {
+  //       // resourceId: '/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/standalone-nightly-pipeline/providers/Microsoft.ManagedIdentity/userAssignedIdentities/standalone-sub-contributor'
+  //       resourceId: '/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/dala-aks-runner8/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aksClusterKubeletIdentity'
+  //       clientId: '8134a3dc-ad2c-486b-adeb-a4ff75cb55c5'
+  //       objectId: '71c8ae14-0aa4-4962-a1ef-46aff516a9ee'
+  //     }
+  //   }
+  //   networkProfile: {
+  //     loadBalancerProfile: {
+  //       outboundIPs: {
+  //         publicIPs: [
+  //           {
+  //             id: outboundIp.id
+  //           }
+  //         ]
+  //       }
+  //     }
 
-//       networkMode: 'transparent'
-//       networkPlugin: 'azure'
-//     }
-//   }
+  //     networkMode: 'transparent'
+  //     networkPlugin: 'azure'
+  //   }
+  // }
 }
 
 
 
-// resource cosmosdb 'Microsoft.DocumentDB/databaseAccounts@2022-05-15' = {
-//   name: cosmosdbName
-//   location: region
-//   kind: 'GlobalDocumentDB'
-//   properties: {
-//     enableMultipleWriteLocations: false
-//     enableAutomaticFailover: false
-//     databaseAccountOfferType: 'Standard'
-//     disableLocalAuth: true
-//     capabilities: [
-//       {
-//         name: 'EnableTable'
-//       }
-//     ]
-//     consistencyPolicy: {
-//       defaultConsistencyLevel: 'Session'
-//       maxIntervalInSeconds: 5
-//       maxStalenessPrefix: 100
-//     }
-//     locations: [
-//       {
-//         locationName: region
-//         provisioningState: 'Succeeded'
-//         failoverPriority: 0
-//         isZoneRedundant: false
-//       }
-//     ]
-//   }
-// }
+resource cosmosdb 'Microsoft.DocumentDB/databaseAccounts@2022-05-15' existing = {
+  name: cosmosdbName
+  // location: region
+  // kind: 'GlobalDocumentDB'
+  // properties: {
+  //   enableMultipleWriteLocations: false
+  //   enableAutomaticFailover: false
+  //   databaseAccountOfferType: 'Standard'
+  //   disableLocalAuth: true
+  //   capabilities: [
+  //     {
+  //       name: 'EnableTable'
+  //     }
+  //   ]
+  //   consistencyPolicy: {
+  //     defaultConsistencyLevel: 'Session'
+  //     maxIntervalInSeconds: 5
+  //     maxStalenessPrefix: 100
+  //   }
+  //   locations: [
+  //     {
+  //       locationName: region
+  //       provisioningState: 'Succeeded'
+  //       failoverPriority: 0
+  //       isZoneRedundant: false
+  //     }
+  //   ]
+  // }
+}
 
 
 resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
