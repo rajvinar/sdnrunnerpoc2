@@ -156,7 +156,7 @@ fi
 # done
 
 
-SYSTEM_VMSS=("dncpool121")
+SYSTEM_VMSS=("dncpool121, dncpool12")
 # Loop through VMSS names and create VMSS
 for VMSS_NAME in "${SYSTEM_VMSS[@]}"; do
     EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
@@ -212,9 +212,9 @@ done
 
 # # Label the nodes to specify the type
 # kubectl label node linuxpool12000000 node-type=cnscni
-# kubectl label node dncpool12000000 node-type=dnc
+kubectl label node dncpool12000000 node-type=dnc
 # kubectl label node linuxpool121000000 node-type=cnscni
-# kubectl label node dncpool121000000 node-type=dnc
+kubectl label node dncpool121000000 node-type=dnc
 
 # echo "Deploying azure_cns_configmap.yaml to namespace default..."
 # kubectl apply -f azure_cns_configmap.yaml -n default
@@ -224,7 +224,7 @@ done
 # kubectl apply -f azure_cns_daemonset.yaml -n default
 
 # echo "Deploying dnc_configmap.yaml to namespace default..."
-# kubectl apply -f dnc_configmap.yaml -n default
+kubectl apply -f dnc_configmap.yaml -n default
 
 # echo "Deploying dnc_deployment.yaml to namespace default..."
 # # TODO: deploy DNC needs to assign MI that can access DB to the dnc node
