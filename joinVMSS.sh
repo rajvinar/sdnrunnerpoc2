@@ -177,14 +177,14 @@ for VMSS_NAME in "${SYSTEM_VMSS[@]}"; do
     wait
 done
 
-# # Wait for all background processes to complete
-# wait
+# Wait for all background processes to complete
+wait
 
-# # Display logs for each VMSS deployment
-# for VMSS_NAME in "${VMSS_NAMES[@]}"; do
-#     echo "Displaying logs for $VMSS_NAME deployment:"
-#     cat "./lin-script-${VMSS_NAME}.log"
-# done
+# Display logs for each VMSS deployment
+for VMSS_NAME in "${SYSTEM_VMSS[@]}"; do
+    echo "Displaying logs for $VMSS_NAME deployment:"
+    cat "./lin-script-${VMSS_NAME}.log"
+done
 
 # # Verify the nodes are ready
 # echo "Verifying that nodes are ready..."
