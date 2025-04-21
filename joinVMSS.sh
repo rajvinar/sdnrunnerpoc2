@@ -105,9 +105,9 @@ if ! command -v helm &> /dev/null; then
     helm version
 fi
 
-# sed "s|__OBJECT_ID__|$OID|g" ./bootstrap-role.yaml | kubectl apply -f -
-#         echo "installing azure cni and cns."
-#         helm install -n kube-system base9 ./chart --set installCniPlugins.enabled=true --set cilium.enabled=false --set azurecnsUnmanaged.enabled=true --set wiImageCredProvider.enabled=false --set azurecnsUnmanaged.version=v1.6.23 --set azurecnsUnmanaged.versionWindows=v1.6.23
+sed "s|__OBJECT_ID__|$OID|g" ./bootstrap-role.yaml | kubectl apply -f -
+        echo "installing azure cni and cns."
+        helm install -n kube-system base9 ./chart --set installCniPlugins.enabled=true --set cilium.enabled=false --set azurecnsUnmanaged.enabled=true --set wiImageCredProvider.enabled=false --set azurecnsUnmanaged.version=v1.6.23 --set azurecnsUnmanaged.versionWindows=v1.6.23
 
 
 # # Define VMSS names
@@ -446,18 +446,18 @@ kubectl apply -f dnc_configmap.yaml -n default
 
 
 
-# Variables
-END_TIME=$((SECONDS + 600))  # 30 minutes = 1800 seconds
-INTERVAL=10  # Interval between iterations in seconds
+# # Variables
+# END_TIME=$((SECONDS + 600))  # 30 minutes = 1800 seconds
+# INTERVAL=10  # Interval between iterations in seconds
 
-echo "Starting the loop for 30 minutes..."
+# echo "Starting the loop for 30 minutes..."
 
-# Loop for 30 minutes
-while [ $SECONDS -lt $END_TIME ]; do
-  echo "Running task at $(date)..."
+# # Loop for 30 minutes
+# while [ $SECONDS -lt $END_TIME ]; do
+#   echo "Running task at $(date)..."
 
-  # Wait for the specified interval before the next iteration
-  sleep $INTERVAL
-done
+#   # Wait for the specified interval before the next iteration
+#   sleep $INTERVAL
+# done
 
-echo "Loop completed after 30 minutes."
+# echo "Loop completed after 30 minutes."
