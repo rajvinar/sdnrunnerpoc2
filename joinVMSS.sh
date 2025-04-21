@@ -156,7 +156,7 @@ fi
 # done
 
 
-SYSTEM_VMSS=("dncpool121, dncpool12")
+SYSTEM_VMSS=("dncpool13, dncpool131")
 # Loop through VMSS names and create VMSS
 for VMSS_NAME in "${SYSTEM_VMSS[@]}"; do
     EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
@@ -212,9 +212,9 @@ done
 
 # # Label the nodes to specify the type
 # kubectl label node linuxpool12000000 node-type=cnscni
-kubectl label node dncpool12000000 node-type=dnc
+kubectl label node dncpool13000000 node-type=dnc
 # kubectl label node linuxpool121000000 node-type=cnscni
-kubectl label node dncpool121000000 node-type=dnc
+kubectl label node dncpool131000000 node-type=dnc
 
 # echo "Deploying azure_cns_configmap.yaml to namespace default..."
 # kubectl apply -f azure_cns_configmap.yaml -n default
