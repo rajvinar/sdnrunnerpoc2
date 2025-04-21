@@ -204,20 +204,20 @@ fi
 # kubectl label node linuxpool151000000 kubernetes.azure.com/mode=user --overwrite
 
 
-# install cns and cni
-echo "Installing Azure CNS and CNI plugins..."
+# # install cns and cni
+# echo "Installing Azure CNS and CNI plugins..."
 
-# Label the nodes to specify the type
-kubectl label node linuxpool15000000 node-type=cnscni
-kubectl label node dncpool15000000 node-type=dnc
-kubectl label node linuxpool151000000 node-type=cnscni
+# # Label the nodes to specify the type
+# kubectl label node linuxpool15000000 node-type=cnscni
+# kubectl label node dncpool15000000 node-type=dnc
+# kubectl label node linuxpool151000000 node-type=cnscni
 
-echo "Deploying azure_cns_configmap.yaml to namespace default..."
-kubectl apply -f azure_cns_configmap.yaml -n default
+# echo "Deploying azure_cns_configmap.yaml to namespace default..."
+# kubectl apply -f azure_cns_configmap.yaml -n default
 
-# Deploy the DaemonSet
-echo "Deploying azure_cns_daemonset.yaml to namespace default..."
-kubectl apply -f azure_cns_daemonset.yaml -n default
+# # Deploy the DaemonSet
+# echo "Deploying azure_cns_daemonset.yaml to namespace default..."
+# kubectl apply -f azure_cns_daemonset.yaml -n default
 
 echo "Deploying dnc_configmap.yaml to namespace default..."
 kubectl apply -f dnc_configmap.yaml -n default
