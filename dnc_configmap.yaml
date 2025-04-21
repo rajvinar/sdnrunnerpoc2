@@ -8,7 +8,7 @@ data:
       "DataStoreSettings": {
         "AzureStorageInfo": {
           "UseAzTablesSDK": true,
-          "AccountName": "standalonecosmos",
+          "AccountName": "daladb8",
           "Key": "",
           "PartitionKey": "standalone-c8c4d06b-3c3d-4a4f-8ed3-48d3e6b85a89",
           "Environment": "",
