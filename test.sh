@@ -20,6 +20,27 @@ fi
 echo "auth to aks..."
 az aks get-credentials --resource-group dala-aks-runner8 --name aks --overwrite-existing  --admin || exit 1
 
+apk add --no-cache curl
+
+if ! command -v kubectl &> /dev/null; then
+    echo "kubectl not found! Installing..."
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    wait
+    chmod +x kubectl
+    mv kubectl /usr/local/bin/
+    kubectl version --client
+fi
+
+
+if ! command -v helm &> /dev/null; then
+    echo "helm not found! Installing..."
+    apk add --no-cache helm
+    wait
+    helm version
+fi
+
+
+
 NAMESPACE="default"  # Replace with the namespace of the DNC deployment
 LABEL_SELECTOR="app=dnc"  # Replace with the label selector for the DNC pod
 LOCAL_PORT=9000  # Local port to forward
