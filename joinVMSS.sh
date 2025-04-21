@@ -134,7 +134,7 @@ sed "s|__OBJECT_ID__|$OID|g" ./bootstrap-role.yaml | kubectl apply -f -
 # done
 
 
-WORKER_VMSS=("linuxpool141" "linuxpool14")
+WORKER_VMSS=("linuxpool151" "linuxpool15")
 # Loop through VMSS names and create VMSS
 for VMSS_NAME in "${WORKER_VMSS[@]}"; do
     EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
@@ -156,7 +156,7 @@ for VMSS_NAME in "${WORKER_VMSS[@]}"; do
 done
 
 
-SYSTEM_VMSS=("dncpool14")
+SYSTEM_VMSS=("dncpool15")
 # Loop through VMSS names and create VMSS
 for VMSS_NAME in "${SYSTEM_VMSS[@]}"; do
     EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
@@ -200,17 +200,17 @@ done
 # echo "All nodes are ready and joined to the AKS cluster."
 
 # Promote one of the VMSS to be a user pool
-kubectl label node linuxpool14000000 kubernetes.azure.com/mode=user --overwrite
-kubectl label node linuxpool141000000 kubernetes.azure.com/mode=user --overwrite
+kubectl label node linuxpool15000000 kubernetes.azure.com/mode=user --overwrite
+kubectl label node linuxpool151000000 kubernetes.azure.com/mode=user --overwrite
 
 
 # install cns and cni
 echo "Installing Azure CNS and CNI plugins..."
 
 # Label the nodes to specify the type
-kubectl label node linuxpool14000000 node-type=cnscni
-kubectl label node dncpool14000000 node-type=dnc
-kubectl label node linuxpool141000000 node-type=cnscni
+kubectl label node linuxpool15000000 node-type=cnscni
+kubectl label node dncpool15000000 node-type=dnc
+kubectl label node linuxpool151000000 node-type=cnscni
 
 echo "Deploying azure_cns_configmap.yaml to namespace default..."
 kubectl apply -f azure_cns_configmap.yaml -n default
