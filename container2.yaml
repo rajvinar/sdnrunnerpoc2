@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: container2-pod
+  labels:
+    app: container2pod
+spec:
+  containers:
+  - name: container2
+    image: acnsdnrunners.azurecr.io/worker:v1.7.0
+    ports:
+    - containerPort: 443
+      protocol: TCP
+    - containerPort: 8080
+      protocol: TCP
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "1"
+      limits:
+        memory: "1Gi"
+        cpu: "1"
+  nodeSelector:
+    cx: vm2
+  restartPolicy: Always
