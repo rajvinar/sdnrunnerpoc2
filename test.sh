@@ -523,7 +523,7 @@ echo "Starting orchestration..."
 
 # Example: Deploy pods for the nodes
 echo "Deploying pods for nodes..."
-deploy_pod
+deploy_pods
 
 # Check pod health
 echo "Checking pod health..."
