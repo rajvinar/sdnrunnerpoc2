@@ -1,3 +1,4 @@
+# sal=c4f01b22-f4c8-495a-bd4d-2df90498b81b
 while getopts "a:" opt; do
   case $opt in
     a)
@@ -228,7 +229,7 @@ EOF
 )
 
   # Send the POST request to add the subnet
-  response=$(curl -s -w "%{http_code}" -o /tmp/add_subnet_response.json -X POST "$DNC_API_ENDPOINT/subnets?api-version=$API_VERSION" \
+  response=$(curl -s -w "%{http_code}" -o /tmp/add_subnet_response.json -X POST "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/subnets/$CUSTOMER_SUBNET_NAME?api-version=$API_VERSION" \
     -H "Content-Type: application/json" \
     -d "$subnet_request")
 
@@ -251,7 +252,7 @@ check_subnet_status() {
   echo "Checking status of subnet: $CUSTOMER_SUBNET_NAME in VNet: $CUSTOMER_VNET_GUID"
 
   # Send the GET request to check the subnet status
-  response=$(curl -s -w "%{http_code}" -o /tmp/subnet_status_response.json -X GET "$DNC_API_ENDPOINT/subnets/$CUSTOMER_VNET_GUID/$CUSTOMER_SUBNET_NAME/status?api-version=$API_VERSION" \
+  response=$(curl -s -w "%{http_code}" -o /tmp/subnet_status_response.json -X GET "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/subnets/$CUSTOMER_SUBNET_NAME/status?api-version=$API_VERSION" \
     -H "Content-Type: application/json")
 
   # Extract HTTP status code
