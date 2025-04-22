@@ -324,7 +324,7 @@ IP_CONSTRAINT=""
 NODE_CONSTRAINT=""  # Replace with the node constraint if needed
 SECONDARY_IP_COUNT=0  # Number of secondary IPs to allocate
 PRIMARY_IP_PREFIX_BITS=0  # Primary IP prefix bits
-CONTAINER_TYPE="Kubernetes"  # Container type
+CONTAINER_TYPE="Docker"  # Container type
 OWNER_ID=""  # Replace with the owner ID
 RESERVATION_ID=""  # Replace with the reservation ID if needed
 RESERVATION_SET_ID=""  # Replace with the reservation set ID if needed
@@ -386,6 +386,8 @@ else
 EOF
 )
 fi
+
+echo "NC request payload: $nc_request"
 
   # Send the POST request to create the NC
   response=$(curl -s -w "%{http_code}" -o /tmp/create_nc_response.json -X POST "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/networkcontainer/$NC_ID?api-version=2018-03-01" \
