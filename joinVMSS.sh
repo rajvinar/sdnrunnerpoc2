@@ -62,10 +62,10 @@ echo "Authenticating with AKS cluster..."
 az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$CLUSTER_NAME" --overwrite-existing  --admin || exit 1
 echo "Successfully authenticated with AKS cluster."
 
-# Retrieve the Object ID of the managed identity
-echo "Retrieving Object ID of the managed identity..."
-OID=$(az identity show --ids "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/helm-script-msi3" --query principalId -o tsv)
-echo "OID: $OID"
+# # Retrieve the Object ID of the managed identity
+# echo "Retrieving Object ID of the managed identity..."
+# OID=$(az identity show --ids "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ManagedIdentity/userAssignedIdentities/helm-script-msi3" --query principalId -o tsv)
+# echo "OID: $OID"
 
 pwd  # Prints the current working directory
 find . -type d  # Lists all directories (including subdirectories)
