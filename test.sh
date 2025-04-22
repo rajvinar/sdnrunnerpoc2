@@ -1,22 +1,22 @@
 # sal=c4f01b22-f4c8-495a-bd4d-2df90498b81b
-while getopts "a:" opt; do
-  case $opt in
-    a)
-      AUTH_TOKEN="$OPTARG"
-      ;;
-    *)
-      echo "Usage: $0 -a <AUTH_TOKEN>"
-      exit 1
-      ;;
-  esac
-done
+# while getopts "a:" opt; do
+#   case $opt in
+#     a)
+#       AUTH_TOKEN="$OPTARG"
+#       ;;
+#     *)
+#       echo "Usage: $0 -a <AUTH_TOKEN>"
+#       exit 1
+#       ;;
+#   esac
+# done
 
-# Check if AUTH_TOKEN is provided
-if [[ -z "$AUTH_TOKEN" ]]; then
-  echo "Error: AUTH_TOKEN is required."
-  echo "Usage: $0 -a <AUTH_TOKEN>"
-  exit 1
-fi
+# # Check if AUTH_TOKEN is provided
+# if [[ -z "$AUTH_TOKEN" ]]; then
+#   echo "Error: AUTH_TOKEN is required."
+#   echo "Usage: $0 -a <AUTH_TOKEN>"
+#   exit 1
+# fi
 
 echo "auth to aks..."
 az aks get-credentials --resource-group dala-aks-runner8 --name aks --overwrite-existing  --admin || exit 1
@@ -40,7 +40,7 @@ if ! command -v helm &> /dev/null; then
     helm version
 fi
 
-
+apk add --no-cache util-linux
 
 NAMESPACE="default"  # Replace with the namespace of the DNC deployment
 LABEL_SELECTOR="app=dnc"  # Replace with the label selector for the DNC pod
