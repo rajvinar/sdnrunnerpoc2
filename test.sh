@@ -210,14 +210,14 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 DNC_API_ENDPOINT=$DNC_URL
 CUSTOMER_VNET_GUID="3f84330f-6410-4996-bb28-78513d2eb093"  # Replace with your customer VNet GUID
 CUSTOMER_SUBNET_NAME="delegatedSubnet"  # Replace with your customer subnet name
-API_VERSION="2021-02-24"  # Replace with the API version
+API_VERSION="2018-03-01"  # Replace with the API version
 RETRY_COUNT=20  # Number of retry attempts
 RETRY_DELAY=3  # Delay between retries in seconds
 
 # Function to add a subnet
 add_subnet() {
   echo "Attempting to add subnet: $CUSTOMER_SUBNET_NAME to VNet: $CUSTOMER_VNET_GUID"
-
+  echo "AUTH_TOKEN: $AUTH_TOKEN"
   # Construct the subnet request payload
   subnet_request=$(cat <<EOF
 {
