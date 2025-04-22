@@ -309,228 +309,227 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 # echo "Failed to verify subnet status after $RETRY_COUNT attempts."
 
 ########################### Create NCs ###########################
-# Variables
-DNC_API_ENDPOINT=$DNC_URL
-CUSTOMER_VNET_GUID="3f84330f-6410-4996-bb28-78513d2eb093"  # Replace with your customer VNet GUID
-CUSTOMER_SUBNET_NAME="delegatedSubnet"
-NODE_NAME="linuxpool15000000"  # Replace with the node name
-NC_ID=$(uuidgen)  # Replace with the network container ID
-NODE_IP="10.224.0.69"  # Replace with the node IP
-POD_NAME="container1-pod"  # Replace with the pod name
-POD_NAMESPACE="default"  # Replace with the pod namespace
-RETRY_COUNT=20  # Number of retry attempts
-RETRY_DELAY=3  # Delay between retries in seconds
-IP_CONSTRAINT=""
-NODE_CONSTRAINT=""  # Replace with the node constraint if needed
-SECONDARY_IP_COUNT=0  # Number of secondary IPs to allocate
-PRIMARY_IP_PREFIX_BITS=0  # Primary IP prefix bits
-CONTAINER_TYPE="AzureContainerInstance"  # Container type
-OWNER_ID=""  # Replace with the owner ID
-RESERVATION_ID=""  # Replace with the reservation ID if needed
-RESERVATION_SET_ID=""  # Replace with the reservation set ID if needed
-IFACE_ID=$NODE_IP  # Replace with the interface ID if needed
-HOST_TO_NC=false  # Allow host to NC communication
-NC_TO_HOST=false  # Allow NC to host communication
+# # Variables
+# DNC_API_ENDPOINT=$DNC_URL
+# CUSTOMER_VNET_GUID="3f84330f-6410-4996-bb28-78513d2eb093"  # Replace with your customer VNet GUID
+# CUSTOMER_SUBNET_NAME="delegatedSubnet"
+# NODE_NAME="linuxpool15000000"  # Replace with the node name
+# NC_ID=$(uuidgen)  # Replace with the network container ID
+# NODE_IP="10.224.0.69"  # Replace with the node IP
+# POD_NAME="container1-pod"  # Replace with the pod name
+# POD_NAMESPACE="default"  # Replace with the pod namespace
+# RETRY_COUNT=20  # Number of retry attempts
+# RETRY_DELAY=3  # Delay between retries in seconds
+# IP_CONSTRAINT=""
+# NODE_CONSTRAINT=""  # Replace with the node constraint if needed
+# SECONDARY_IP_COUNT=0  # Number of secondary IPs to allocate
+# PRIMARY_IP_PREFIX_BITS=0  # Primary IP prefix bits
+# CONTAINER_TYPE="AzureContainerInstance"  # Container type
+# OWNER_ID=""  # Replace with the owner ID
+# RESERVATION_ID=""  # Replace with the reservation ID if needed
+# RESERVATION_SET_ID=""  # Replace with the reservation set ID if needed
+# IFACE_ID=$NODE_IP  # Replace with the interface ID if needed
+# HOST_TO_NC=false  # Allow host to NC communication
+# NC_TO_HOST=false  # Allow NC to host communication
 
 
-# Function to create a network container (NC)
-create_nc() {
-  echo "Attempting to create NC: $NC_ID on node: $NODE_NAME"
+# # Function to create a network container (NC)
+# create_nc() {
+#   echo "Attempting to create NC: $NC_ID on node: $NODE_NAME"
 
-# Construct the NC request payload
-if [[ -z "$RESERVATION_ID" && -z "$RESERVATION_SET_ID" ]]; then
-  # V2 request
-  nc_request=$(cat <<EOF
-{
-  "AllocationRequest": {
-    "SubnetName": "$CUSTOMER_SUBNET_NAME",
-    "IPConstraint": "$IP_CONSTRAINT",
-    "NodeConstraint": "$NODE_CONSTRAINT",
-    "SecondaryIPCount": $SECONDARY_IP_COUNT,
-    "PrimaryIPPrefixBits": $PRIMARY_IP_PREFIX_BITS
-  },
-  "AssociationInfo": {
-    "NodeID": "$NODE_NAME",
-    "InterfaceID": "$IFACE_ID",
-    "ContainerType": "$CONTAINER_TYPE",
-    "OrchestratorContext": {
-      "PodName": "$POD_NAME",
-      "PodNamespace": "$POD_NAMESPACE"
-    }
-  },
-  "AllowHostToNCCommunication": $HOST_TO_NC,
-  "AllowNCToHostCommunication": $NC_TO_HOST,
-  "OwnerID": "$OWNER_ID"
-}
-EOF
-)
-else
-  # V1 request
-  nc_request=$(cat <<EOF
-{
-  "ReservationID": "$RESERVATION_ID",
-  "ReservationSetID": "$RESERVATION_SET_ID",
-  "AssociationInfo": {
-    "NodeID": "$NODE_ID",
-    "InterfaceID": "$IFACE_ID",
-    "ContainerType": "$CONTAINER_TYPE",
-    "OrchestratorContext": {
-      "PodName": "$POD_NAME",
-      "PodNamespace": "$POD_NAMESPACE"
-    }
-  },
-  "AllowHostToNCCommunication": $HOST_TO_NC,
-  "AllowNCToHostCommunication": $NC_TO_HOST,
-  "OwnerID": "$OWNER_ID"
-}
-EOF
-)
-fi
+# # Construct the NC request payload
+# if [[ -z "$RESERVATION_ID" && -z "$RESERVATION_SET_ID" ]]; then
+#   # V2 request
+#   nc_request=$(cat <<EOF
+# {
+#   "AllocationRequest": {
+#     "SubnetName": "$CUSTOMER_SUBNET_NAME",
+#     "IPConstraint": "$IP_CONSTRAINT",
+#     "NodeConstraint": "$NODE_CONSTRAINT",
+#     "SecondaryIPCount": $SECONDARY_IP_COUNT,
+#     "PrimaryIPPrefixBits": $PRIMARY_IP_PREFIX_BITS
+#   },
+#   "AssociationInfo": {
+#     "NodeID": "$NODE_NAME",
+#     "InterfaceID": "$IFACE_ID",
+#     "ContainerType": "$CONTAINER_TYPE",
+#     "OrchestratorContext": {
+#       "PodName": "$POD_NAME",
+#       "PodNamespace": "$POD_NAMESPACE"
+#     }
+#   },
+#   "AllowHostToNCCommunication": $HOST_TO_NC,
+#   "AllowNCToHostCommunication": $NC_TO_HOST,
+#   "OwnerID": "$OWNER_ID"
+# }
+# EOF
+# )
+# else
+#   # V1 request
+#   nc_request=$(cat <<EOF
+# {
+#   "ReservationID": "$RESERVATION_ID",
+#   "ReservationSetID": "$RESERVATION_SET_ID",
+#   "AssociationInfo": {
+#     "NodeID": "$NODE_ID",
+#     "InterfaceID": "$IFACE_ID",
+#     "ContainerType": "$CONTAINER_TYPE",
+#     "OrchestratorContext": {
+#       "PodName": "$POD_NAME",
+#       "PodNamespace": "$POD_NAMESPACE"
+#     }
+#   },
+#   "AllowHostToNCCommunication": $HOST_TO_NC,
+#   "AllowNCToHostCommunication": $NC_TO_HOST,
+#   "OwnerID": "$OWNER_ID"
+# }
+# EOF
+# )
+# fi
 
-echo "NC request payload: $nc_request"
+# echo "NC request payload: $nc_request"
 
-  # Send the POST request to create the NC
-  response=$(curl -s -w "%{http_code}" -o /tmp/create_nc_response.json -X POST "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/networkcontainer/$NC_ID?api-version=2018-03-01" \
-    -H "Content-Type: application/json" \
-    -d "$nc_request")
+#   # Send the POST request to create the NC
+#   response=$(curl -s -w "%{http_code}" -o /tmp/create_nc_response.json -X POST "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/networkcontainer/$NC_ID?api-version=2018-03-01" \
+#     -H "Content-Type: application/json" \
+#     -d "$nc_request")
 
-  # Extract HTTP status code
-  http_status=$(tail -n1 <<< "$response")
+#   # Extract HTTP status code
+#   http_status=$(tail -n1 <<< "$response")
 
-  # Check if the request was successful or if there was a conflict
-  if [[ "$http_status" -ne 200 && "$http_status" -ne 409 ]]; then
-    echo "Failed to create NC $NC_ID. HTTP status: $http_status"
-    cat /tmp/create_nc_response.json
-    return 1
-  fi
+#   # Check if the request was successful or if there was a conflict
+#   if [[ "$http_status" -ne 200 && "$http_status" -ne 409 ]]; then
+#     echo "Failed to create NC $NC_ID. HTTP status: $http_status"
+#     cat /tmp/create_nc_response.json
+#     return 1
+#   fi
 
-  echo "Successfully created NC: $NC_ID"
-  cat /tmp/create_nc_response.json
-}
+#   echo "Successfully created NC: $NC_ID"
+#   cat /tmp/create_nc_response.json
+# }
 
-# Function to poll the NC status
-poll_nc_status() {
-  echo "Polling status of NC: $NC_ID"
+# # Function to poll the NC status
+# poll_nc_status() {
+#   echo "Polling status of NC: $NC_ID"
 
-  # Send the GET request to check the NC status
-  response=$(curl -s -w "%{http_code}" -o /tmp/nc_status_response.json -X GET "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/networkcontainer/$NC_ID/status?api-version=2018-03-01" \
-    -H "Content-Type: application/json")
+#   # Send the GET request to check the NC status
+#   response=$(curl -s -w "%{http_code}" -o /tmp/nc_status_response.json -X GET "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/networkcontainer/$NC_ID/status?api-version=2018-03-01" \
+#     -H "Content-Type: application/json")
 
-  # Extract HTTP status code
-  http_status=$(tail -n1 <<< "$response")
+#   # Extract HTTP status code
+#   http_status=$(tail -n1 <<< "$response")
 
-  # Check if the request was successful
-  if [[ "$http_status" -ne 200 ]]; then
-    echo "Failed to get status for NC $NC_ID. HTTP status: $http_status"
-    cat /tmp/nc_status_response.json
-    return 1
-  fi
+#   # Check if the request was successful
+#   if [[ "$http_status" -ne 200 ]]; then
+#     echo "Failed to get status for NC $NC_ID. HTTP status: $http_status"
+#     cat /tmp/nc_status_response.json
+#     return 1
+#   fi
 
-  # Parse the status from the response
-  nc_status=$(jq -r '.Status' /tmp/nc_status_response.json)
-  if [[ "$nc_status" != "Completed" ]]; then
-    echo "NC $NC_ID status is not 'Completed'. Current status: $nc_status"
-    return 1
-  fi
+#   # Parse the status from the response
+#   nc_status=$(jq -r '.Status' /tmp/nc_status_response.json)
+#   if [[ "$nc_status" != "Completed" ]]; then
+#     echo "NC $NC_ID status is not 'Completed'. Current status: $nc_status"
+#     return 1
+#   fi
 
-  echo "NC $NC_ID status is 'Completed'."
-}
+#   echo "NC $NC_ID status is 'Completed'."
+# }
 
 
-attempt=1
-while [[ $attempt -le $RETRY_COUNT ]]; do
-  if create_nc; then
-    echo "Create NC succeeded on attempt $attempt."
-    break
-  fi
+# attempt=1
+# while [[ $attempt -le $RETRY_COUNT ]]; do
+#   if create_nc; then
+#     echo "Create NC succeeded on attempt $attempt."
+#     break
+#   fi
 
-  echo "Create NC failed on attempt $attempt. Retrying in $RETRY_DELAY seconds..."
-  sleep "$RETRY_DELAY"
-  attempt=$((attempt + 1))
-done
+#   echo "Create NC failed on attempt $attempt. Retrying in $RETRY_DELAY seconds..."
+#   sleep "$RETRY_DELAY"
+#   attempt=$((attempt + 1))
+# done
 
-if [[ $attempt -gt $RETRY_COUNT ]]; then
-  echo "Failed to create NC after $RETRY_COUNT attempts."
-  exit 1
-fi
+# if [[ $attempt -gt $RETRY_COUNT ]]; then
+#   echo "Failed to create NC after $RETRY_COUNT attempts."
+#   exit 1
+# fi
 
-# Retry logic for polling the NC status
-attempt=1
-while [[ $attempt -le $RETRY_COUNT ]]; do
-  if poll_nc_status; then
-    echo "NC status check succeeded on attempt $attempt."
-    exit 0
-  fi
+# # Retry logic for polling the NC status
+# attempt=1
+# while [[ $attempt -le $RETRY_COUNT ]]; do
+#   if poll_nc_status; then
+#     echo "NC status check succeeded on attempt $attempt."
+#     exit 0
+#   fi
 
-  echo "NC status check failed on attempt $attempt. Retrying in $RETRY_DELAY seconds..."
-  sleep "$RETRY_DELAY"
-  attempt=$((attempt + 1))
-done
+#   echo "NC status check failed on attempt $attempt. Retrying in $RETRY_DELAY seconds..."
+#   sleep "$RETRY_DELAY"
+#   attempt=$((attempt + 1))
+# done
 
-echo "Failed to verify NC status after $RETRY_COUNT attempts."
+# echo "Failed to verify NC status after $RETRY_COUNT attempts."
 
 ############################ Deploy Pods ###########################
-# POD_HEALTH_CHECK_RETRY_COUNT=10  # Number of retry attempts
-# POD_HEALTH_CHECK_RETRY_DELAY=5  # Delay between retries in seconds
-# POD_NAME="container1-pod"
-# NODE_NAME="linuxpool151000000"
-# NAMESPACE="default"  # Replace with the namespace of the DNC deployment
-# POD_YAML="container1.yaml"
-# LABEL_SELECTOR="cx=vm1"
-# # Function to deploy pods
-# deploy_pods() {
-#   kubectl label node $NODE_NAME $LABEL_SELECTOR --overwrite
-#   kubectl apply -f "$POD_YAML" -n "$NAMESPACE"
-#   echo "Pod $POD_NAME deployed successfully"
-# }
+POD_HEALTH_CHECK_RETRY_COUNT=10  # Number of retry attempts
+POD_HEALTH_CHECK_RETRY_DELAY=5  # Delay between retries in seconds
+POD_NAME="container1-pod"
+NODE_NAME="linuxpool15000000"
+NAMESPACE="default"  # Replace with the namespace of the DNC deployment
+POD_YAML="container1.yaml"
+LABEL_SELECTOR="cx=vm1"
+# Function to deploy pods
+deploy_pods() {
+  kubectl label node $NODE_NAME $LABEL_SELECTOR --overwrite
+  kubectl apply -f "$POD_YAML" -n "$NAMESPACE"
+  echo "Pod $POD_NAME deployed successfully"
+}
 
-# # Function to check pod health
-# check_pod_health() {
-#   echo "Checking pod health..."
-#   for ((attempt = 1; attempt <= $POD_HEALTH_CHECK_RETRY_COUNT; attempt++)); do
-#     pod_list=$(kubectl get pods -n "$NAMESPACE" -l "$LABEL_SELECTOR" -o json)
-#     pod_count=$(echo "$pod_list" | jq '.items | length')
+# Function to check pod health
+check_pod_health() {
+  echo "Checking pod health..."
+  for ((attempt = 1; attempt <= $POD_HEALTH_CHECK_RETRY_COUNT; attempt++)); do
+    pod_list=$(kubectl get pods -n "$NAMESPACE" -l "$LABEL_SELECTOR" -o json)
+    pod_count=$(echo "$pod_list" | jq '.items | length')
 
-#     if [[ "$pod_count" -eq 0 ]]; then
-#       echo "No pods scheduled. Retrying in $POD_HEALTH_CHECK_RETRY_DELAY seconds..."
-#       sleep "$POD_HEALTH_CHECK_RETRY_DELAY"
-#       continue
-#     fi
+    if [[ "$pod_count" -eq 0 ]]; then
+      echo "No pods scheduled. Retrying in $POD_HEALTH_CHECK_RETRY_DELAY seconds..."
+      sleep "$POD_HEALTH_CHECK_RETRY_DELAY"
+      continue
+    fi
 
-#     all_ready=true
-#     for pod in $(echo "$pod_list" | jq -r '.items[].status.phase'); do
-#       if [[ "$pod" != "Running" ]]; then
-#         all_ready=false
-#         break
-#       fi
-#     done
+    all_ready=true
+    for pod in $(echo "$pod_list" | jq -r '.items[].status.phase'); do
+      if [[ "$pod" != "Running" ]]; then
+        all_ready=false
+        break
+      fi
+    done
 
-#     if [[ "$all_ready" == true ]]; then
-#       echo "All pods are healthy and running."
-#       return 0
-#     fi
+    if [[ "$all_ready" == true ]]; then
+      echo "All pods are healthy and running."
+      return 0
+    fi
 
-#     echo "Some pods are not ready. Retrying in $POD_HEALTH_CHECK_RETRY_DELAY seconds..."
-#     sleep "$POD_HEALTH_CHECK_RETRY_DELAY"
-#   done
+    echo "Some pods are not ready. Retrying in $POD_HEALTH_CHECK_RETRY_DELAY seconds..."
+    sleep "$POD_HEALTH_CHECK_RETRY_DELAY"
+  done
 
-#   echo "Failed to verify pod health after $POD_HEALTH_CHECK_RETRY_COUNT attempts."
-#   exit 1
-# }
+  echo "Failed to verify pod health after $POD_HEALTH_CHECK_RETRY_COUNT attempts."
+  exit 1
+}
 
-# # Main script logic
-# echo "Starting orchestration..."
+# Main script logic
+echo "Starting orchestration..."
 
-# # Example: Deploy pods for the nodes
-# echo "Deploying pods for nodes..."
-# deploy_pods "node1" "linux" "goldpinger-linux-0"
-# deploy_pods "node2" "windows" "goldpinger-windows-0"
+# Example: Deploy pods for the nodes
+echo "Deploying pods for nodes..."
+deploy_pod
 
-# # Check pod health
-# echo "Checking pod health..."
-# check_pod_health
+# Check pod health
+echo "Checking pod health..."
+check_pod_health
 
-# echo "Orchestration completed successfully."
+echo "Orchestration completed successfully."
 
 ############ Stop port forwarding after the operation #############
 # Stop port forwarding
