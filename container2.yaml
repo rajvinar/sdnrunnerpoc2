@@ -20,6 +20,10 @@ spec:
       limits:
         memory: "1Gi"
         cpu: "1"
+  - name: alpine
+    image: alpine
+    command: ["/bin/sh"]
+    args: ["-c", "while true; do sleep 36000; done"]
   nodeSelector:
     cx: vm2
   restartPolicy: Always
