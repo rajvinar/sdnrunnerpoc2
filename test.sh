@@ -68,7 +68,9 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 ###################### Add node to DNC ######################
 # # Variables
 # NODE_ID="linuxpool15000000"
+#NODE_IP="10.224.0.69"
 NODE_ID="linuxpool151000000"
+NODE_IP="10.224.0.65"
 
 DNC_ENDPOINT=$DNC_URL #"https://10.224.0.65:9000"  # Replace with the actual DNC endpoint
 NODE_API="$DNC_ENDPOINT/nodes/$NODE_ID?api-version=2018-03-01"
@@ -77,7 +79,7 @@ JSON_CONTENT_TYPE="application/json"
 # Node information payload
 NODE_INFO_JSON=$(cat <<EOF
 {
-  "IPAddresses": ["10.224.0.69"],
+  "IPAddresses": ["$NODE_IP"],
   "OrchestratorType": "Kubernetes",
   "InfrastructureNetwork": "52ebbf7f-eb3b-4eea-8ef6-51fe3e2d8bcd",
   "AZID": "",
