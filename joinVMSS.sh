@@ -211,13 +211,13 @@ fi
 #   echo "Successfully labeled node: $NODE"
 # done
 
-# Deploy the cns ConfigMap
-echo "Deploying azure_cns_configmap.yaml to namespace default..."
-kubectl apply -f azure_cns_configmap.yaml -n default
+# # Deploy the cns ConfigMap
+# echo "Deploying azure_cns_configmap.yaml to namespace default..."
+# kubectl apply -f azure_cns_configmap.yaml -n default
 
-# Deploy the cns DaemonSet
-echo "Deploying azure_cns_daemonset.yaml to namespace default..."
-kubectl apply -f azure_cns_daemonset.yaml -n default
+# # Deploy the cns DaemonSet
+# echo "Deploying azure_cns_daemonset.yaml to namespace default..."
+# kubectl apply -f azure_cns_daemonset.yaml -n default
 
 
 # # install dnc
@@ -440,18 +440,18 @@ kubectl apply -f azure_cns_daemonset.yaml -n default
 
 
 
-# # Variables
-# END_TIME=$((SECONDS + 500))  # 30 minutes = 1800 seconds
-# INTERVAL=10  # Interval between iterations in seconds
+# Variables
+END_TIME=$((SECONDS + 500))  # 30 minutes = 1800 seconds
+INTERVAL=10  # Interval between iterations in seconds
 
-# echo "Starting the loop for 30 minutes..."
+echo "Starting the loop for 30 minutes..."
 
-# # Loop for 30 minutes
-# while [ $SECONDS -lt $END_TIME ]; do
-#   echo "Running task at $(date)..."
+# Loop for 30 minutes
+while [ $SECONDS -lt $END_TIME ]; do
+  echo "Running task at $(date)..."
 
-#   # Wait for the specified interval before the next iteration
-#   sleep $INTERVAL
-# done
+  # Wait for the specified interval before the next iteration
+  sleep $INTERVAL
+done
 
-# echo "Loop completed after 30 minutes."
+echo "Loop completed after 30 minutes."
