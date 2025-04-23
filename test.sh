@@ -65,6 +65,41 @@ fi
 DNC_URL="http://localhost:$LOCAL_PORT"
 echo "Successfully port forwarded to DNC: $DNC_URL"
 
+############# Delete node in DNC #############
+# Variables
+DNC_API_ENDPOINT=$DNC_UR  # Replace with your DNC API endpoint
+NODE_ID="linuxpool151000000"  # Replace with the node ID to delete
+API_VERSION="2018-03-01"  # API version
+
+# Construct the Node API URL
+NODE_API_URL="$DNC_API_ENDPOINT/nodes/$NODE_ID?api-version=$API_VERSION"
+
+# Function to delete a node
+delete_node() {
+  echo "Attempting to delete node: $NODE_ID"
+
+  # Send the DELETE request
+  response=$(curl -s -w "%{http_code}" -o /tmp/delete_node_response.json -X DELETE "$NODE_API_URL")
+
+  # Extract HTTP status code
+  http_status=$(tail -n1 <<< "$response")
+
+  # Check if the request was successful
+  if [[ "$http_status" -ne 200 ]]; then
+    echo "Failed to delete node $NODE_ID. HTTP status: $http_status"
+    cat /tmp/delete_node_response.json
+    exit 1
+  fi
+
+  echo "Successfully deleted node: $NODE_ID"
+  cat /tmp/delete_node_response.json
+}
+
+# Call the function
+delete_node
+
+sleep 10
+
 ###################### Add node to DNC ######################
 # # Variables
 # NODE_ID="linuxpool15000000"
