@@ -67,7 +67,7 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 
 ############# Delete node in DNC #############
 # Variables
-DNC_API_ENDPOINT=$DNC_UR  # Replace with your DNC API endpoint
+DNC_API_ENDPOINT=$DNC_URL  # Replace with your DNC API endpoint
 NODE_ID="linuxpool151000000"  # Replace with the node ID to delete
 API_VERSION="2018-03-01"  # API version
 
