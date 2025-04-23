@@ -7,7 +7,7 @@ metadata:
 spec:
   containers:
   - name: container2
-    image: acnsdnrunners.azurecr.io/worker:v1.7.0
+    image: acnsdnrunners.azurecr.io/workerlinux:v0.0.7
     ports:
     - containerPort: 443
       protocol: TCP
