@@ -134,26 +134,26 @@ fi
 # done
 
 
-# WORKER_VMSS=("linuxpool151" "linuxpool15")
-# # Loop through VMSS names and create VMSS
-# for VMSS_NAME in "${WORKER_VMSS[@]}"; do
-#     EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
-#     echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
+WORKER_VMSS=("linuxpool160" "linuxpool161")
+# Loop through VMSS names and create VMSS
+for VMSS_NAME in "${WORKER_VMSS[@]}"; do
+    EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
+    echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
 
-#     az deployment group create \
-#         --name "vmss-deployment-${VMSS_NAME}" \
-#         --resource-group "$RESOURCE_GROUP" \
-#         --template-file "$BICEP_TEMPLATE_PATH" \
-#         --parameters vnetname="$VNET_NAME" \
-#                      subnetname="$SUBNET_NAME" \
-#                      name="$VMSS_NAME" \
-#                      adminPassword="$ADMIN_PASSWORD" \
-#                      vnetrgname="$RESOURCE_GROUP" \
-#                      vmsssku="Standard_E8s_v3" \
-#                      location="westus" \
-#                      extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
-#     wait
-# done
+    az deployment group create \
+        --name "vmss-deployment-${VMSS_NAME}" \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file "$BICEP_TEMPLATE_PATH" \
+        --parameters vnetname="$VNET_NAME" \
+                     subnetname="$SUBNET_NAME" \
+                     name="$VMSS_NAME" \
+                     adminPassword="$ADMIN_PASSWORD" \
+                     vnetrgname="$RESOURCE_GROUP" \
+                     vmsssku="Standard_E8s_v3" \
+                     location="westus" \
+                     extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
+    wait
+done
 
 
 # SYSTEM_VMSS=("dncpool15")
@@ -199,25 +199,29 @@ fi
 
 # echo "All nodes are ready and joined to the AKS cluster."
 
-# # Promote one of the VMSS to be a user pool
-# kubectl label node linuxpool15000000 kubernetes.azure.com/mode=user --overwrite
-# kubectl label node linuxpool151000000 kubernetes.azure.com/mode=user --overwrite
+
+WORKER_NODES=("linuxpool160000000" "linuxpool161000000")
+# Label key and value
+LABEL_KEY="kubernetes.azure.com/mode"
+LABEL_VALUE="user"
+# Loop through each node and apply the label
+for NODE in "${WORKER_NODES[@]}"; do
+  kubectl label node "$NODE" "$LABEL_KEY=$LABEL_VALUE" --overwrite
+  kubectl label node "$NODE" node-type=cnscni --overwrite
+  echo "Successfully labeled node: $NODE"
+done
+
+# Deploy the cns ConfigMap
+echo "Deploying azure_cns_configmap.yaml to namespace default..."
+kubectl apply -f azure_cns_configmap.yaml -n default
+
+# Deploy the cns DaemonSet
+echo "Deploying azure_cns_daemonset.yaml to namespace default..."
+kubectl apply -f azure_cns_daemonset.yaml -n default
 
 
-# # install cns and cni
-# echo "Installing Azure CNS and CNI plugins..."
-
-# # Label the nodes to specify the type
-# kubectl label node linuxpool15000000 node-type=cnscni
+# # install dnc
 # kubectl label node dncpool15000000 node-type=dnc
-# kubectl label node linuxpool151000000 node-type=cnscni
-
-# echo "Deploying azure_cns_configmap.yaml to namespace default..."
-# kubectl apply -f azure_cns_configmap.yaml -n default
-
-# # Deploy the DaemonSet
-# echo "Deploying azure_cns_daemonset.yaml to namespace default..."
-# kubectl apply -f azure_cns_daemonset.yaml -n default
 
 # echo "Deploying dnc_configmap.yaml to namespace default..."
 # kubectl apply -f dnc_configmap.yaml -n default
@@ -225,16 +229,6 @@ fi
 # echo "Deploying dnc_deployment.yaml to namespace default..."
 # # TODO: deploy DNC needs to assign MI that can access DB to the dnc node
 # kubectl apply -f dnc_deployment.yaml -n default
-
-# # Label the nodes to specify the cx
-# kubectl label node linuxpool12000000 cx=vm1
-# kubectl label node linuxpool121000000 cx=vm2
-
-# echo "Deploying container1.yaml to node cx=vm1..."
-# kubectl apply -f container1.yaml -n default
-
-# echo "Deploying container2.yaml to node cx=vm2..."
-# kubectl apply -f container2.yaml -n default
 
 #########################################################################
 ########################### Label data plane nodes ###########################
