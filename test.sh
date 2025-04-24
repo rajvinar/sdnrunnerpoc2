@@ -416,10 +416,9 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 # NODE_IP="10.224.0.69"  # Replace with the node IP
 # POD_NAME="container1-pod"  # Replace with the pod name
 
-
-NODE_NAME="linuxpool160000000"  # Replace with the node name
-NODE_IP="10.224.0.76"  # Replace with the node IP
-POD_NAME="container1-pod"  # Replace with the pod name
+NODE_NAME="linuxpool161000000"  # Replace with the node name
+NODE_IP="10.224.0.78"  # Replace with the node IP
+POD_NAME="container2-pod"  # Replace with the pod name
 
 DNC_API_ENDPOINT=$DNC_URL
 CUSTOMER_VNET_GUID="3f84330f-6410-4996-bb28-78513d2eb093"  # Replace with your customer VNet GUID
