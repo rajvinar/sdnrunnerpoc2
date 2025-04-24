@@ -134,26 +134,26 @@ fi
 # done
 
 
-# WORKER_VMSS=("linuxpool160" "linuxpool161")
-# # Loop through VMSS names and create VMSS
-# for VMSS_NAME in "${WORKER_VMSS[@]}"; do
-#     EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
-#     echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
+WORKER_VMSS=("linuxpool162")
+# Loop through VMSS names and create VMSS
+for VMSS_NAME in "${WORKER_VMSS[@]}"; do
+    EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
+    echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
 
-#     az deployment group create \
-#         --name "vmss-deployment-${VMSS_NAME}" \
-#         --resource-group "$RESOURCE_GROUP" \
-#         --template-file "$BICEP_TEMPLATE_PATH" \
-#         --parameters vnetname="$VNET_NAME" \
-#                      subnetname="$SUBNET_NAME" \
-#                      name="$VMSS_NAME" \
-#                      adminPassword="$ADMIN_PASSWORD" \
-#                      vnetrgname="$RESOURCE_GROUP" \
-#                      vmsssku="Standard_E8s_v3" \
-#                      location="westus" \
-#                      extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
-#     wait
-# done
+    az deployment group create \
+        --name "vmss-deployment-${VMSS_NAME}" \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file "$BICEP_TEMPLATE_PATH" \
+        --parameters vnetname="$VNET_NAME" \
+                     subnetname="$SUBNET_NAME" \
+                     name="$VMSS_NAME" \
+                     adminPassword="$ADMIN_PASSWORD" \
+                     vnetrgname="$RESOURCE_GROUP" \
+                     vmsssku="Standard_E8s_v3" \
+                     location="westus" \
+                     extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
+    wait
+done
 
 
 # SYSTEM_VMSS=("dncpool15")
@@ -200,24 +200,24 @@ fi
 # echo "All nodes are ready and joined to the AKS cluster."
 
 
-# WORKER_NODES=("linuxpool160000000" "linuxpool161000000")
-# # Label key and value
-# LABEL_KEY="kubernetes.azure.com/mode"
-# LABEL_VALUE="user"
-# # Loop through each node and apply the label
-# for NODE in "${WORKER_NODES[@]}"; do
-#   kubectl label node "$NODE" "$LABEL_KEY=$LABEL_VALUE" --overwrite
-#   kubectl label node "$NODE" node-type=cnscni --overwrite
-#   echo "Successfully labeled node: $NODE"
-# done
+WORKER_NODES=("linuxpool162000000")
+# Label key and value
+LABEL_KEY="kubernetes.azure.com/mode"
+LABEL_VALUE="user"
+# Loop through each node and apply the label
+for NODE in "${WORKER_NODES[@]}"; do
+  kubectl label node "$NODE" "$LABEL_KEY=$LABEL_VALUE" --overwrite
+  kubectl label node "$NODE" node-type=cnscni --overwrite
+  echo "Successfully labeled node: $NODE"
+done
 
-# # Deploy the cns ConfigMap
-# echo "Deploying azure_cns_configmap.yaml to namespace default..."
-# kubectl apply -f azure_cns_configmap.yaml -n default
+# Deploy the cns ConfigMap
+echo "Deploying azure_cns_configmap.yaml to namespace default..."
+kubectl apply -f azure_cns_configmap.yaml -n default
 
-# # Deploy the cns DaemonSet
-# echo "Deploying azure_cns_daemonset.yaml to namespace default..."
-# kubectl apply -f azure_cns_daemonset.yaml -n default
+# Deploy the cns DaemonSet
+echo "Deploying azure_cns_daemonset.yaml to namespace default..."
+kubectl apply -f azure_cns_daemonset.yaml -n default
 
 
 # # install dnc
@@ -229,33 +229,6 @@ fi
 # echo "Deploying dnc_deployment.yaml to namespace default..."
 # # TODO: deploy DNC needs to assign MI that can access DB to the dnc node
 # kubectl apply -f dnc_deployment.yaml -n default
-
-#########################################################################
-########################### Label data plane nodes ###########################
-# # Variables
-# NODE_LABEL_KEY="dncnode"  # Key for the label
-
-# # Function to label a node
-# label_node() {
-#   local node_name=$1
-#   local label_key=$2
-#   local label_value=$3
-
-#   echo "Labeling node: $node_name with label: $label_key=$label_value"
-#   kubectl label node "$node_name" "$label_key=$label_value" --overwrite
-#   echo "Successfully labeled node: $node_name with label: $label_key=$label_value"
-# }
-
-# # Get the list of nodes to label
-# # Replace this with your logic to fetch node names dynamically
-# NODE_NAMES=("linuxpool15000000" "linuxpool151000000")
-
-# # Label each node
-# for NODE_NAME in $NODE_NAMES; do
-#   label_node "$NODE_NAME" "$NODE_LABEL_KEY" "$NODE_NAME"
-# done
-
-# echo "All nodes have been successfully labeled."
 
 ######################## Port Forwarding to DNC ########################
 # NAMESPACE="default"
