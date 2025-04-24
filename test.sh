@@ -145,67 +145,67 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 # cat /tmp/add_node_response.json
 
 
+###########new code #############
+# # Define an array of nodes with their details
+# NODES=(
+#   "linuxpool160000000|10.224.0.76"  # Format: NODE_ID|NODE_IP
+#   "linuxpool161000000|10.224.0.78"
+# )
 
-# Define an array of nodes with their details
-NODES=(
-  "linuxpool160000000|10.224.0.76"  # Format: NODE_ID|NODE_IP
-  "linuxpool161000000|10.224.0.78"
-)
+# DNC_ENDPOINT=$DNC_URL  # Replace with the actual DNC endpoint
+# JSON_CONTENT_TYPE="application/json"
 
-DNC_ENDPOINT=$DNC_URL  # Replace with the actual DNC endpoint
-JSON_CONTENT_TYPE="application/json"
+# # Function to register a node
+# register_node() {
+#   local NODE_ID=$1
+#   local NODE_IP=$2
 
-# Function to register a node
-register_node() {
-  local NODE_ID=$1
-  local NODE_IP=$2
+#   echo "Registering node: $NODE_ID with IP: $NODE_IP"
 
-  echo "Registering node: $NODE_ID with IP: $NODE_IP"
+#   # Node information payload
+#   NODE_INFO_JSON=$(cat <<EOF
+# {
+#   "IPAddresses": ["$NODE_IP"],
+#   "OrchestratorType": "Kubernetes",
+#   "InfrastructureNetwork": "52ebbf7f-eb3b-4eea-8ef6-51fe3e2d8bcd",
+#   "AZID": "",
+#   "NodeType": "",
+#   "NodeSet": "",
+#   "NumCores": 8,
+#   "DualstackEnabled": false
+# }
+# EOF
+#   )
 
-  # Node information payload
-  NODE_INFO_JSON=$(cat <<EOF
-{
-  "IPAddresses": ["$NODE_IP"],
-  "OrchestratorType": "Kubernetes",
-  "InfrastructureNetwork": "52ebbf7f-eb3b-4eea-8ef6-51fe3e2d8bcd",
-  "AZID": "",
-  "NodeType": "",
-  "NodeSet": "",
-  "NumCores": 8,
-  "DualstackEnabled": false
-}
-EOF
-  )
+#   # Send HTTP POST request to add the node
+#   response=$(curl -s -w "%{http_code}" -o /tmp/add_node_response_$NODE_ID.json -X POST "$DNC_ENDPOINT/nodes/$NODE_ID?api-version=2018-03-01" \
+#     -H "Content-Type: $JSON_CONTENT_TYPE" \
+#     -d "$NODE_INFO_JSON")
 
-  # Send HTTP POST request to add the node
-  response=$(curl -s -w "%{http_code}" -o /tmp/add_node_response_$NODE_ID.json -X POST "$DNC_ENDPOINT/nodes/$NODE_ID?api-version=2018-03-01" \
-    -H "Content-Type: $JSON_CONTENT_TYPE" \
-    -d "$NODE_INFO_JSON")
+#   # Extract HTTP status code
+#   http_status=$(tail -n1 <<< "$response")
 
-  # Extract HTTP status code
-  http_status=$(tail -n1 <<< "$response")
+#   # Check if the request was successful
+#   if [[ "$http_status" -ne 200 ]]; then
+#     echo "Failed to add node $NODE_ID. HTTP status: $http_status"
+#     cat /tmp/add_node_response_$NODE_ID.json
+#     return 1
+#   fi
 
-  # Check if the request was successful
-  if [[ "$http_status" -ne 200 ]]; then
-    echo "Failed to add node $NODE_ID. HTTP status: $http_status"
-    cat /tmp/add_node_response_$NODE_ID.json
-    return 1
-  fi
+#   echo "Node $NODE_ID added successfully!"
+#   cat /tmp/add_node_response_$NODE_ID.json
+# }
 
-  echo "Node $NODE_ID added successfully!"
-  cat /tmp/add_node_response_$NODE_ID.json
-}
+# # Iterate over the nodes and register each one
+# for node in "${NODES[@]}"; do
+#   IFS="|" read -r NODE_ID NODE_IP <<< "$node"
+#   if ! register_node "$NODE_ID" "$NODE_IP"; then
+#     echo "Error: Failed to register node $NODE_ID"
+#     exit 1
+#   fi
+# done
 
-# Iterate over the nodes and register each one
-for node in "${NODES[@]}"; do
-  IFS="|" read -r NODE_ID NODE_IP <<< "$node"
-  if ! register_node "$NODE_ID" "$NODE_IP"; then
-    echo "Error: Failed to register node $NODE_ID"
-    exit 1
-  fi
-done
-
-echo "All nodes registered successfully!"
+# echo "All nodes registered successfully!"
 
 ################ Join vnet ################
 # NETWORK_ID="3f84330f-6410-4996-bb28-78513d2eb093"
@@ -751,6 +751,7 @@ done
 
 echo "All NCs registered and verified successfully!"
 
+sleep 20
 
 ############################ Deploy Pods ###########################
 # POD_NAME="container1-pod"
