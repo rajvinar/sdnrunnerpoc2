@@ -6,20 +6,20 @@ metadata:
     app: container1pod
 spec:
   containers:
-  - name: container1
-    image: acnsdnrunners.azurecr.io/workerlinux:v0.0.7
-    ports:
-    - containerPort: 443
-      protocol: TCP
-    - containerPort: 8080
-      protocol: TCP
-    resources:
-      requests:
-        memory: "1Gi"
-        cpu: "1"
-      limits:
-        memory: "1Gi"
-        cpu: "1"
+  # - name: container1
+  #   image: acnsdnrunners.azurecr.io/workerlinux:v0.0.7
+  #   ports:
+  #   - containerPort: 443
+  #     protocol: TCP
+  #   - containerPort: 8080
+  #     protocol: TCP
+  #   resources:
+  #     requests:
+  #       memory: "1Gi"
+  #       cpu: "1"
+  #     limits:
+  #       memory: "1Gi"
+  #       cpu: "1"
   - name: alpine
     image: alpine
     command: ["/bin/sh"]
