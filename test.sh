@@ -755,15 +755,15 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 
 
 ############################ Deploy Pods ###########################
-# POD_NAME="container1-pod"
-# NODE_NAME="linuxpool161000000"
-# POD_YAML="container1.yaml"
-# LABEL_SELECTOR="cx=vm1"
+POD_NAME="container1-pod"
+NODE_NAME="linuxpool161000000"
+POD_YAML="container1.yaml"
+LABEL_SELECTOR="cx=vm1"
 
-POD_NAME="container2-pod"
-NODE_NAME="linuxpool162000000"
-POD_YAML="container2.yaml"
-LABEL_SELECTOR="cx=vm2"
+# POD_NAME="container2-pod"
+# NODE_NAME="linuxpool162000000"
+# POD_YAML="container2.yaml"
+# LABEL_SELECTOR="cx=vm2"
 
 NAMESPACE="default"  # Replace with the namespace of the DNC deployment
 POD_HEALTH_CHECK_RETRY_COUNT=10  # Number of retry attempts
