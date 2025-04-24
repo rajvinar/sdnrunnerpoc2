@@ -760,110 +760,31 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 # POD_YAML="container1.yaml"
 # LABEL_SELECTOR="cx=vm1"
 
-POD_NAME="container1-pod"
-NODE_NAME="linuxpool163000000"
-POD_YAML="container1.yaml"
-LABEL_SELECTOR="cx=vm1"
-
-NAMESPACE="default"  # Replace with the namespace of the DNC deployment
-POD_HEALTH_CHECK_RETRY_COUNT=10  # Number of retry attempts
-POD_HEALTH_CHECK_RETRY_DELAY=5  # Delay between retries in seconds
-
-# Function to deploy pods
-deploy_pods() {
-  kubectl label node $NODE_NAME $LABEL_SELECTOR --overwrite
-  kubectl apply -f "$POD_YAML" -n "$NAMESPACE"
-  echo "Pod $POD_NAME deployed successfully"
-}
-
-# Function to check pod health
-check_pod_health() {
-  echo "Checking pod health..."
-  for ((attempt = 1; attempt <= $POD_HEALTH_CHECK_RETRY_COUNT; attempt++)); do
-    pod_list=$(kubectl get pods -n "$NAMESPACE" -l "$LABEL_SELECTOR" -o json)
-    pod_count=$(echo "$pod_list" | jq '.items | length')
-
-    if [[ "$pod_count" -eq 0 ]]; then
-      echo "No pods scheduled. Retrying in $POD_HEALTH_CHECK_RETRY_DELAY seconds..."
-      sleep "$POD_HEALTH_CHECK_RETRY_DELAY"
-      continue
-    fi
-
-    all_ready=true
-    for pod in $(echo "$pod_list" | jq -r '.items[].status.phase'); do
-      if [[ "$pod" != "Running" ]]; then
-        all_ready=false
-        break
-      fi
-    done
-
-    if [[ "$all_ready" == true ]]; then
-      echo "All pods are healthy and running."
-      return 0
-    fi
-
-    echo "Some pods are not ready. Retrying in $POD_HEALTH_CHECK_RETRY_DELAY seconds..."
-    sleep "$POD_HEALTH_CHECK_RETRY_DELAY"
-  done
-
-  echo "Failed to verify pod health after $POD_HEALTH_CHECK_RETRY_COUNT attempts."
-  exit 1
-}
-
-# Main script logic
-echo "Starting orchestration..."
-
-# Example: Deploy pods for the nodes
-echo "Deploying pods for nodes..."
-deploy_pods
-
-# Check pod health
-echo "Checking pod health..."
-check_pod_health
-
-echo "Orchestration completed successfully."
-
-############# new code for orchestrating pods #############
-# # Define an array of pods with their details
-# PODS=(
-#   "container1-pod|linuxpool161000000|container1.yaml|cx=vm1"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR
-#   "container2-pod|linuxpool162000000|container2.yaml|cx=vm2"
-# )
+# POD_NAME="container1-pod"
+# NODE_NAME="linuxpool163000000"
+# POD_YAML="container1.yaml"
+# LABEL_SELECTOR="cx=vm1"
 
 # NAMESPACE="default"  # Replace with the namespace of the DNC deployment
 # POD_HEALTH_CHECK_RETRY_COUNT=10  # Number of retry attempts
 # POD_HEALTH_CHECK_RETRY_DELAY=5  # Delay between retries in seconds
 
-# # Function to deploy a pod
-# deploy_pod() {
-#   local POD_NAME=$1
-#   local NODE_NAME=$2
-#   local POD_YAML=$3
-#   local LABEL_SELECTOR=$4
-
-#   echo "Deploying pod: $POD_NAME on node: $NODE_NAME with YAML: $POD_YAML"
-
-#   # Label the node
-#   kubectl label node "$NODE_NAME" "$LABEL_SELECTOR" --overwrite
-
-#   # Apply the pod YAML
+# # Function to deploy pods
+# deploy_pods() {
+#   kubectl label node $NODE_NAME $LABEL_SELECTOR --overwrite
 #   kubectl apply -f "$POD_YAML" -n "$NAMESPACE"
-
 #   echo "Pod $POD_NAME deployed successfully"
 # }
 
 # # Function to check pod health
 # check_pod_health() {
-#   local POD_NAME=$1
-#   local LABEL_SELECTOR=$2
-
-#   echo "Checking health for pod: $POD_NAME..."
+#   echo "Checking pod health..."
 #   for ((attempt = 1; attempt <= $POD_HEALTH_CHECK_RETRY_COUNT; attempt++)); do
 #     pod_list=$(kubectl get pods -n "$NAMESPACE" -l "$LABEL_SELECTOR" -o json)
 #     pod_count=$(echo "$pod_list" | jq '.items | length')
 
 #     if [[ "$pod_count" -eq 0 ]]; then
-#       echo "No pods scheduled for $POD_NAME. Retrying in $POD_HEALTH_CHECK_RETRY_DELAY seconds..."
+#       echo "No pods scheduled. Retrying in $POD_HEALTH_CHECK_RETRY_DELAY seconds..."
 #       sleep "$POD_HEALTH_CHECK_RETRY_DELAY"
 #       continue
 #     fi
@@ -877,31 +798,110 @@ echo "Orchestration completed successfully."
 #     done
 
 #     if [[ "$all_ready" == true ]]; then
-#       echo "Pod $POD_NAME is healthy and running."
+#       echo "All pods are healthy and running."
 #       return 0
 #     fi
 
-#     echo "Pod $POD_NAME is not ready. Retrying in $POD_HEALTH_CHECK_RETRY_DELAY seconds..."
+#     echo "Some pods are not ready. Retrying in $POD_HEALTH_CHECK_RETRY_DELAY seconds..."
 #     sleep "$POD_HEALTH_CHECK_RETRY_DELAY"
 #   done
 
-#   echo "Failed to verify health for pod $POD_NAME after $POD_HEALTH_CHECK_RETRY_COUNT attempts."
+#   echo "Failed to verify pod health after $POD_HEALTH_CHECK_RETRY_COUNT attempts."
 #   exit 1
 # }
 
 # # Main script logic
 # echo "Starting orchestration..."
 
-# # Iterate over the pods and deploy each one
-# for pod in "${PODS[@]}"; do
-#   IFS="|" read -r POD_NAME NODE_NAME POD_YAML LABEL_SELECTOR <<< "$pod"
+# # Example: Deploy pods for the nodes
+# echo "Deploying pods for nodes..."
+# deploy_pods
 
-#   # Deploy the pod
-#   deploy_pod "$POD_NAME" "$NODE_NAME" "$POD_YAML" "$LABEL_SELECTOR"
+# # Check pod health
+# echo "Checking pod health..."
+# check_pod_health
 
-#   # Check the pod's health
-#   check_pod_health "$POD_NAME" "$LABEL_SELECTOR"
-# done
+# echo "Orchestration completed successfully."
+
+############# new code for orchestrating pods #############
+# Define an array of pods with their details
+PODS=(
+  "container2-pod|linuxpool162000000|container2.yaml|cx=vm2"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR
+  "container1-pod|linuxpool163000000|container1.yaml|cx=vm1"
+)
+
+NAMESPACE="default"  # Replace with the namespace of the DNC deployment
+POD_HEALTH_CHECK_RETRY_COUNT=10  # Number of retry attempts
+POD_HEALTH_CHECK_RETRY_DELAY=5  # Delay between retries in seconds
+
+# Function to deploy a pod
+deploy_pod() {
+  local POD_NAME=$1
+  local NODE_NAME=$2
+  local POD_YAML=$3
+  local LABEL_SELECTOR=$4
+
+  echo "Deploying pod: $POD_NAME on node: $NODE_NAME with YAML: $POD_YAML"
+
+  # Label the node
+  kubectl label node "$NODE_NAME" "$LABEL_SELECTOR" --overwrite
+
+  # Apply the pod YAML
+  kubectl apply -f "$POD_YAML" -n "$NAMESPACE"
+
+  echo "Pod $POD_NAME deployed"
+}
+
+# Function to check pod health
+check_pod_health() {
+  local POD_NAME=$1
+  local LABEL_SELECTOR=$2
+
+  echo "Checking health for pod: $POD_NAME..."
+  for ((attempt = 1; attempt <= $POD_HEALTH_CHECK_RETRY_COUNT; attempt++)); do
+    pod_list=$(kubectl get pods -n "$NAMESPACE" -l "$LABEL_SELECTOR" -o json)
+    pod_count=$(echo "$pod_list" | jq '.items | length')
+
+    if [[ "$pod_count" -eq 0 ]]; then
+      echo "No pods scheduled for $POD_NAME. Retrying in $POD_HEALTH_CHECK_RETRY_DELAY seconds..."
+      sleep "$POD_HEALTH_CHECK_RETRY_DELAY"
+      continue
+    fi
+
+    all_ready=true
+    for pod in $(echo "$pod_list" | jq -r '.items[].status.phase'); do
+      if [[ "$pod" != "Running" ]]; then
+        all_ready=false
+        break
+      fi
+    done
+
+    if [[ "$all_ready" == true ]]; then
+      echo "Pod $POD_NAME is healthy and running."
+      return 0
+    fi
+
+    echo "Pod $POD_NAME is not ready. Retrying in $POD_HEALTH_CHECK_RETRY_DELAY seconds..."
+    sleep "$POD_HEALTH_CHECK_RETRY_DELAY"
+  done
+
+  echo "Failed to verify health for pod $POD_NAME after $POD_HEALTH_CHECK_RETRY_COUNT attempts."
+  exit 1
+}
+
+# Main script logic
+echo "Starting orchestration..."
+
+# Iterate over the pods and deploy each one
+for pod in "${PODS[@]}"; do
+  IFS="|" read -r POD_NAME NODE_NAME POD_YAML LABEL_SELECTOR <<< "$pod"
+
+  # Deploy the pod
+  deploy_pod "$POD_NAME" "$NODE_NAME" "$POD_YAML" "$LABEL_SELECTOR"
+
+  # Check the pod's health
+  # check_pod_health "$POD_NAME" "$LABEL_SELECTOR"
+done
 
 # echo "All pods deployed and verified successfully."
 
