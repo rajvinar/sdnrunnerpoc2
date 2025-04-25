@@ -480,7 +480,7 @@ fi
 
 
 # Variables
-END_TIME=$((SECONDS + 180))  # 30 minutes = 1800 seconds
+END_TIME=$((SECONDS + 240))  # 30 minutes = 1800 seconds
 INTERVAL=10  # Interval between iterations in seconds
 
 echo "Starting the loop for 30 minutes..."
