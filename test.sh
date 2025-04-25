@@ -53,7 +53,7 @@ echo "Starting port forwarding from localhost:$LOCAL_PORT to $DNC_POD:$REMOTE_PO
 kubectl port-forward -n "$NAMESPACE" pod/"$DNC_POD" "$LOCAL_PORT:$REMOTE_PORT" & PORT_FORWARD_PID=$!
 
 # Wait for port forwarding to establish
-sleep 20
+sleep 10
 
 # Check if the port forwarding process is running
 if ! kill -0 $PORT_FORWARD_PID 2>/dev/null; then
@@ -64,6 +64,49 @@ fi
 # Log the forwarded URL
 DNC_URL="http://localhost:$LOCAL_PORT"
 echo "Successfully port forwarded to DNC: $DNC_URL"
+
+############################################################
+
+echo "Labeling worker nodes..."
+WORKER_NODES=("linuxpool180000000", "linuxpool181000000") # TODO : make it come from inputs
+# Label key and value
+LABEL_KEY="kubernetes.azure.com/mode"
+LABEL_VALUE="user"
+# Loop through each node and apply the label
+for NODE in "${WORKER_NODES[@]}"; do
+  kubectl label node "$NODE" "$LABEL_KEY=$LABEL_VALUE" --overwrite
+  kubectl label node "$NODE" node-type=cnscni --overwrite
+  echo "Successfully labeled node: $NODE"
+done
+
+
+WORKER_VMSSES=("linuxpool180", "linuxpool181") # TODO : make it come from inputs
+# Assign MI to worker nodes to access runner worker image
+echo "Assigning Managed Identity to worker nodes..."
+for VMSS in "${WORKER_VMSSES[@]}"; do
+    az vmss identity assign --name $VMSS --resource-group dala-aks-runner8 --identities /subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/dala-aks-runner8/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aksClusterKubeletIdentity
+    wait
+done
+
+# echo "Deploying cns ConfigMap and DaemonSet..."
+# Deploy the cns ConfigMap
+echo "Deploying azure_cns_configmap.yaml to namespace default..."
+kubectl apply -f azure_cns_configmap.yaml -n default
+
+# Deploy the cns DaemonSet
+echo "Deploying azure_cns_daemonset.yaml to namespace default..."
+kubectl apply -f azure_cns_daemonset.yaml -n default
+
+
+
+
+
+
+
+
+
+
+
 
 ############# Delete node in DNC #############
 # # Variables
@@ -825,83 +868,83 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 
 ############# new code for orchestrating pods #############
 # Define an array of pods with their details
-PODS=(
-  "container2-pod|linuxpool162000000|container2.yaml|cx=vm2"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR
-  "container1-pod|linuxpool163000000|container1.yaml|cx=vm1"
-)
+# PODS=(
+#   "container2-pod|linuxpool162000000|container2.yaml|cx=vm2"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR
+#   "container1-pod|linuxpool163000000|container1.yaml|cx=vm1"
+# )
 
-NAMESPACE="default"  # Replace with the namespace of the DNC deployment
-POD_HEALTH_CHECK_RETRY_COUNT=10  # Number of retry attempts
-POD_HEALTH_CHECK_RETRY_DELAY=5  # Delay between retries in seconds
+# NAMESPACE="default"  # Replace with the namespace of the DNC deployment
+# POD_HEALTH_CHECK_RETRY_COUNT=10  # Number of retry attempts
+# POD_HEALTH_CHECK_RETRY_DELAY=5  # Delay between retries in seconds
 
-# Function to deploy a pod
-deploy_pod() {
-  local POD_NAME=$1
-  local NODE_NAME=$2
-  local POD_YAML=$3
-  local LABEL_SELECTOR=$4
+# # Function to deploy a pod
+# deploy_pod() {
+#   local POD_NAME=$1
+#   local NODE_NAME=$2
+#   local POD_YAML=$3
+#   local LABEL_SELECTOR=$4
 
-  echo "Deploying pod: $POD_NAME on node: $NODE_NAME with YAML: $POD_YAML"
+#   echo "Deploying pod: $POD_NAME on node: $NODE_NAME with YAML: $POD_YAML"
 
-  # Label the node
-  kubectl label node "$NODE_NAME" "$LABEL_SELECTOR" --overwrite
+#   # Label the node
+#   kubectl label node "$NODE_NAME" "$LABEL_SELECTOR" --overwrite
 
-  # Apply the pod YAML
-  kubectl apply -f "$POD_YAML" -n "$NAMESPACE"
+#   # Apply the pod YAML
+#   kubectl apply -f "$POD_YAML" -n "$NAMESPACE"
 
-  echo "Pod $POD_NAME deployed"
-}
+#   echo "Pod $POD_NAME deployed"
+# }
 
-# Function to check pod health
-check_pod_health() {
-  local POD_NAME=$1
-  local LABEL_SELECTOR=$2
+# # Function to check pod health
+# check_pod_health() {
+#   local POD_NAME=$1
+#   local LABEL_SELECTOR=$2
 
-  echo "Checking health for pod: $POD_NAME..."
-  for ((attempt = 1; attempt <= $POD_HEALTH_CHECK_RETRY_COUNT; attempt++)); do
-    pod_list=$(kubectl get pods -n "$NAMESPACE" -l "$LABEL_SELECTOR" -o json)
-    pod_count=$(echo "$pod_list" | jq '.items | length')
+#   echo "Checking health for pod: $POD_NAME..."
+#   for ((attempt = 1; attempt <= $POD_HEALTH_CHECK_RETRY_COUNT; attempt++)); do
+#     pod_list=$(kubectl get pods -n "$NAMESPACE" -l "$LABEL_SELECTOR" -o json)
+#     pod_count=$(echo "$pod_list" | jq '.items | length')
 
-    if [[ "$pod_count" -eq 0 ]]; then
-      echo "No pods scheduled for $POD_NAME. Retrying in $POD_HEALTH_CHECK_RETRY_DELAY seconds..."
-      sleep "$POD_HEALTH_CHECK_RETRY_DELAY"
-      continue
-    fi
+#     if [[ "$pod_count" -eq 0 ]]; then
+#       echo "No pods scheduled for $POD_NAME. Retrying in $POD_HEALTH_CHECK_RETRY_DELAY seconds..."
+#       sleep "$POD_HEALTH_CHECK_RETRY_DELAY"
+#       continue
+#     fi
 
-    all_ready=true
-    for pod in $(echo "$pod_list" | jq -r '.items[].status.phase'); do
-      if [[ "$pod" != "Running" ]]; then
-        all_ready=false
-        break
-      fi
-    done
+#     all_ready=true
+#     for pod in $(echo "$pod_list" | jq -r '.items[].status.phase'); do
+#       if [[ "$pod" != "Running" ]]; then
+#         all_ready=false
+#         break
+#       fi
+#     done
 
-    if [[ "$all_ready" == true ]]; then
-      echo "Pod $POD_NAME is healthy and running."
-      return 0
-    fi
+#     if [[ "$all_ready" == true ]]; then
+#       echo "Pod $POD_NAME is healthy and running."
+#       return 0
+#     fi
 
-    echo "Pod $POD_NAME is not ready. Retrying in $POD_HEALTH_CHECK_RETRY_DELAY seconds..."
-    sleep "$POD_HEALTH_CHECK_RETRY_DELAY"
-  done
+#     echo "Pod $POD_NAME is not ready. Retrying in $POD_HEALTH_CHECK_RETRY_DELAY seconds..."
+#     sleep "$POD_HEALTH_CHECK_RETRY_DELAY"
+#   done
 
-  echo "Failed to verify health for pod $POD_NAME after $POD_HEALTH_CHECK_RETRY_COUNT attempts."
-  exit 1
-}
+#   echo "Failed to verify health for pod $POD_NAME after $POD_HEALTH_CHECK_RETRY_COUNT attempts."
+#   exit 1
+# }
 
-# Main script logic
-echo "Starting orchestration..."
+# # Main script logic
+# echo "Starting orchestration..."
 
-# Iterate over the pods and deploy each one
-for pod in "${PODS[@]}"; do
-  IFS="|" read -r POD_NAME NODE_NAME POD_YAML LABEL_SELECTOR <<< "$pod"
+# # Iterate over the pods and deploy each one
+# for pod in "${PODS[@]}"; do
+#   IFS="|" read -r POD_NAME NODE_NAME POD_YAML LABEL_SELECTOR <<< "$pod"
 
-  # Deploy the pod
-  deploy_pod "$POD_NAME" "$NODE_NAME" "$POD_YAML" "$LABEL_SELECTOR"
+#   # Deploy the pod
+#   deploy_pod "$POD_NAME" "$NODE_NAME" "$POD_YAML" "$LABEL_SELECTOR"
 
-  # Check the pod's health
-  # check_pod_health "$POD_NAME" "$LABEL_SELECTOR"
-done
+#   # Check the pod's health
+#   # check_pod_health "$POD_NAME" "$LABEL_SELECTOR"
+# done
 
 # echo "All pods deployed and verified successfully."
 

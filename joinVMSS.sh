@@ -136,38 +136,38 @@ fi
 # done
 
 
-# Create Worker node pool(s)
-echo "Creating Worker node pool(s)..."
-WORKER_VMSS=("linuxpool180" "linuxpool181")
-INSTANCE_NAMES=()
-# Loop through VMSS names and create VMSS
-for VMSS_NAME in "${WORKER_VMSS[@]}"; do
-    EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
-    echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
+# # Create Worker node pool(s)
+# echo "Creating Worker node pool(s)..."
+# WORKER_VMSS=("linuxpool180" "linuxpool181")
+# INSTANCE_NAMES=()
+# # Loop through VMSS names and create VMSS
+# for VMSS_NAME in "${WORKER_VMSS[@]}"; do
+#     EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
+#     echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
 
-    az deployment group create \
-        --name "vmss-deployment-${VMSS_NAME}" \
-        --resource-group "$RESOURCE_GROUP" \
-        --template-file "$BICEP_TEMPLATE_PATH" \
-        --parameters vnetname="$VNET_NAME" \
-                     subnetname="$SUBNET_NAME" \
-                     name="$VMSS_NAME" \
-                     adminPassword="$ADMIN_PASSWORD" \
-                     vnetrgname="$RESOURCE_GROUP" \
-                     vmsssku="Standard_E8s_v3" \
-                     location="westus" \
-                     extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
-    wait
+#     az deployment group create \
+#         --name "vmss-deployment-${VMSS_NAME}" \
+#         --resource-group "$RESOURCE_GROUP" \
+#         --template-file "$BICEP_TEMPLATE_PATH" \
+#         --parameters vnetname="$VNET_NAME" \
+#                      subnetname="$SUBNET_NAME" \
+#                      name="$VMSS_NAME" \
+#                      adminPassword="$ADMIN_PASSWORD" \
+#                      vnetrgname="$RESOURCE_GROUP" \
+#                      vmsssku="Standard_E8s_v3" \
+#                      location="westus" \
+#                      extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
+#     wait
 
-    INSTANCE_IDS=$(az vmss list-instances --resource-group "$RESOURCE_GROUP" --name "$VMSS_NAME" --query "[].instanceId" -o tsv)
-    for INSTANCE_ID in $INSTANCE_IDS; do
-        INSTANCE_NAME=$(az vmss get-instance-view --resource-group "$RESOURCE_GROUP" --name "$VMSS_NAME" --instance-id "$INSTANCE_ID" --query "osProfile.computerName" -o tsv)
-        INSTANCE_NAMES+=("$INSTANCE_NAME")
-    done
-done
+#     INSTANCE_IDS=$(az vmss list-instances --resource-group "$RESOURCE_GROUP" --name "$VMSS_NAME" --query "[].instanceId" -o tsv)
+#     for INSTANCE_ID in $INSTANCE_IDS; do
+#         INSTANCE_NAME=$(az vmss get-instance-view --resource-group "$RESOURCE_GROUP" --name "$VMSS_NAME" --instance-id "$INSTANCE_ID" --query "osProfile.computerName" -o tsv)
+#         INSTANCE_NAMES+=("$INSTANCE_NAME")
+#     done
+# done
 
-# Write the instance names to the output path
-echo "{\"instanceNames\": $(printf '%s\n' "${INSTANCE_NAMES[@]}" | jq -R . | jq -s .)}" > $AZ_SCRIPTS_OUTPUT_PATH
+# # Write the instance names to the output path
+# echo "{\"instanceNames\": $(printf '%s\n' "${INSTANCE_NAMES[@]}" | jq -R . | jq -s .)}" > $AZ_SCRIPTS_OUTPUT_PATH
 ################################################################################################################
 ################################################################################################################
 
@@ -479,18 +479,18 @@ echo "{\"instanceNames\": $(printf '%s\n' "${INSTANCE_NAMES[@]}" | jq -R . | jq 
 
 
 
-# # Variables
-# END_TIME=$((SECONDS + 180))  # 30 minutes = 1800 seconds
-# INTERVAL=10  # Interval between iterations in seconds
+# Variables
+END_TIME=$((SECONDS + 180))  # 30 minutes = 1800 seconds
+INTERVAL=10  # Interval between iterations in seconds
 
-# echo "Starting the loop for 30 minutes..."
+echo "Starting the loop for 30 minutes..."
 
-# # Loop for 30 minutes
-# while [ $SECONDS -lt $END_TIME ]; do
-#   echo "Running task at $(date)..."
+# Loop for 30 minutes
+while [ $SECONDS -lt $END_TIME ]; do
+  echo "Running task at $(date)..."
 
-#   # Wait for the specified interval before the next iteration
-#   sleep $INTERVAL
-# done
+  # Wait for the specified interval before the next iteration
+  sleep $INTERVAL
+done
 
-# echo "Loop completed after 30 minutes."
+echo "Loop completed after 30 minutes."

@@ -500,34 +500,34 @@ resource helmScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
 
 output instanceNames array = helmScript.properties.outputs.instanceNames
 
-resource testDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
-  name: 'test-${uniqueString(resourceGroup().name)}'
-  kind: 'AzureCLI'
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${userAssignedIdentity.id}': {}
-    }
-  }
-  location: region
-  dependsOn: [
-    helmScript
-    // cluster
-    // aksRoleAssignment
-    // containerRoleAssignment
-  ]
-  properties: {
-    azCliVersion: '2.60.0'
-    forceUpdateTag: randomGuid
-    retentionInterval: 'PT2H'
-    cleanupPreference: 'OnExpiration'
-    timeout: 'PT20M'
-    scriptContent: '''
-      #!/bin/bash
-      echo "Instance Names: ${helmScript.properties.outputs.instanceNames}"
-    '''
-  }
-}
+// resource testDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+//   name: 'test-${uniqueString(resourceGroup().name)}'
+//   kind: 'AzureCLI'
+//   identity: {
+//     type: 'UserAssigned'
+//     userAssignedIdentities: {
+//       '${userAssignedIdentity.id}': {}
+//     }
+//   }
+//   location: region
+//   dependsOn: [
+//     helmScript
+//     // cluster
+//     // aksRoleAssignment
+//     // containerRoleAssignment
+//   ]
+//   properties: {
+//     azCliVersion: '2.60.0'
+//     forceUpdateTag: randomGuid
+//     retentionInterval: 'PT2H'
+//     cleanupPreference: 'OnExpiration'
+//     timeout: 'PT20M'
+//     scriptContent: '''
+//       #!/bin/bash
+//       echo "Instance Names: ${helmScript.properties.outputs.instanceNames}"
+//     '''
+//   }
+// }
 
 
 // // Cleanup script
