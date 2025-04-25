@@ -66,86 +66,66 @@ DNC_URL="http://localhost:$LOCAL_PORT"
 echo "Successfully port forwarded to DNC: $DNC_URL"
 
 ############################################################
-# # Define an array of nodes with their details
-# NODES=(
-#   "linuxpool180000000|10.224.0.90"  # Format: NODE_ID|NODE_IP TODO: Make it come from inputs
-#   "linuxpool181000000|10.224.0.94"
-# )
+# Define an array of nodes with their details
+NODES=(
+  "linuxpool180000000|10.224.0.90"  # Format: NODE_ID|NODE_IP TODO: Make it come from inputs
+  "linuxpool181000000|10.224.0.94"
+)
 
-# DNC_ENDPOINT=$DNC_URL  # Replace with the actual DNC endpoint
-# JSON_CONTENT_TYPE="application/json"
+DNC_ENDPOINT=$DNC_URL  # Replace with the actual DNC endpoint
+JSON_CONTENT_TYPE="application/json"
 
-# # Function to register a node
-# register_node() {
-#   local NODE_ID=$1
-#   local NODE_IP=$2
+# Function to register a node
+register_node() {
+  local NODE_ID=$1
+  local NODE_IP=$2
 
-#   echo "Registering node: $NODE_ID with IP: $NODE_IP"
+  echo "Registering node: $NODE_ID with IP: $NODE_IP"
 
-#   # Node information payload
-#   NODE_INFO_JSON=$(cat <<EOF
-# {
-#   "IPAddresses": ["$NODE_IP"],
-#   "OrchestratorType": "Kubernetes",
-#   "InfrastructureNetwork": "52ebbf7f-eb3b-4eea-8ef6-51fe3e2d8bcd",
-#   "AZID": "",
-#   "NodeType": "",
-#   "NodeSet": "",
-#   "NumCores": 8,
-#   "DualstackEnabled": false
-# }
-# EOF
-#   )
+  # Node information payload
+  NODE_INFO_JSON=$(cat <<EOF
+{
+  "IPAddresses": ["$NODE_IP"],
+  "OrchestratorType": "Kubernetes",
+  "InfrastructureNetwork": "52ebbf7f-eb3b-4eea-8ef6-51fe3e2d8bcd",
+  "AZID": "",
+  "NodeType": "",
+  "NodeSet": "",
+  "NumCores": 8,
+  "DualstackEnabled": false
+}
+EOF
+  )
 
-#   # Send HTTP POST request to add the node
-#   response=$(curl -s -w "%{http_code}" -o /tmp/add_node_response_$NODE_ID.json -X POST "$DNC_ENDPOINT/nodes/$NODE_ID?api-version=2018-03-01" \
-#     -H "Content-Type: $JSON_CONTENT_TYPE" \
-#     -d "$NODE_INFO_JSON")
+  # Send HTTP POST request to add the node
+  response=$(curl -s -w "%{http_code}" -o /tmp/add_node_response_$NODE_ID.json -X POST "$DNC_ENDPOINT/nodes/$NODE_ID?api-version=2018-03-01" \
+    -H "Content-Type: $JSON_CONTENT_TYPE" \
+    -d "$NODE_INFO_JSON")
 
-#   # Extract HTTP status code
-#   http_status=$(tail -n1 <<< "$response")
+  # Extract HTTP status code
+  http_status=$(tail -n1 <<< "$response")
 
-#   # Check if the request was successful
-#   if [[ "$http_status" -ne 200 ]]; then
-#     echo "Failed to add node $NODE_ID. HTTP status: $http_status"
-#     cat /tmp/add_node_response_$NODE_ID.json
-#     return 1
-#   fi
+  # Check if the request was successful
+  if [[ "$http_status" -ne 200 ]]; then
+    echo "Failed to add node $NODE_ID. HTTP status: $http_status"
+    cat /tmp/add_node_response_$NODE_ID.json
+    return 1
+  fi
 
-#   echo "Node $NODE_ID added successfully!"
-#   cat /tmp/add_node_response_$NODE_ID.json
-# }
+  echo "Node $NODE_ID added successfully!"
+  cat /tmp/add_node_response_$NODE_ID.json
+}
 
-# # Iterate over the nodes and register each one
-# for node in "${NODES[@]}"; do
-#   IFS="|" read -r NODE_ID NODE_IP <<< "$node"
-#   if ! register_node "$NODE_ID" "$NODE_IP"; then
-#     echo "Error: Failed to register node $NODE_ID"
-#     exit 1
-#   fi
-# done
+# Iterate over the nodes and register each one
+for node in "${NODES[@]}"; do
+  IFS="|" read -r NODE_ID NODE_IP <<< "$node"
+  if ! register_node "$NODE_ID" "$NODE_IP"; then
+    echo "Error: Failed to register node $NODE_ID"
+    exit 1
+  fi
+done
 
-# echo "All nodes registered successfully!"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+echo "All nodes registered successfully!"
 
 
 
@@ -159,49 +139,49 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 
 ############################################################
 
-echo "Labeling worker nodes..."
-WORKER_NODES=("linuxpool180000000" "linuxpool181000000") # TODO : make it come from inputs
-# Label key and value
-LABEL_KEY="kubernetes.azure.com/mode"
-LABEL_VALUE="user"
-# Loop through each node and apply the label
-for NODE in "${WORKER_NODES[@]}"; do
-  kubectl label node "$NODE" "$LABEL_KEY=$LABEL_VALUE" --overwrite
-  kubectl label node "$NODE" node-type=cnscni --overwrite
-  echo "Successfully labeled node: $NODE"
-done
+# echo "Labeling worker nodes..."
+# WORKER_NODES=("linuxpool180000000" "linuxpool181000000") # TODO : make it come from inputs
+# # Label key and value
+# LABEL_KEY="kubernetes.azure.com/mode"
+# LABEL_VALUE="user"
+# # Loop through each node and apply the label
+# for NODE in "${WORKER_NODES[@]}"; do
+#   kubectl label node "$NODE" "$LABEL_KEY=$LABEL_VALUE" --overwrite
+#   kubectl label node "$NODE" node-type=cnscni --overwrite
+#   echo "Successfully labeled node: $NODE"
+# done
 
 
-WORKER_VMSSES=("linuxpool180" "linuxpool181") # TODO : make it come from inputs
-MANAGED_IDENTITY="/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/dala-aks-runner8/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aksClusterKubeletIdentity"
-# Assign MI to worker nodes to access runner worker image
-echo "Assigning Managed Identity to worker nodes..."
-for VMSS in "${WORKER_VMSSES[@]}"; do
-    # echo "Assigning Managed Identity to VMSS: $VMSS"
-    # az vmss identity assign --name $VMSS --resource-group dala-aks-runner8 --identities /subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/dala-aks-runner8/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aksClusterKubeletIdentity
-    # echo "Successfully assigned Managed Identity to VMSS: $VMSS"
-       echo "Checking Managed Identity for VMSS: $VMSS"
+# WORKER_VMSSES=("linuxpool180" "linuxpool181") # TODO : make it come from inputs
+# MANAGED_IDENTITY="/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/dala-aks-runner8/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aksClusterKubeletIdentity"
+# # Assign MI to worker nodes to access runner worker image
+# echo "Assigning Managed Identity to worker nodes..."
+# for VMSS in "${WORKER_VMSSES[@]}"; do
+#     # echo "Assigning Managed Identity to VMSS: $VMSS"
+#     # az vmss identity assign --name $VMSS --resource-group dala-aks-runner8 --identities /subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/dala-aks-runner8/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aksClusterKubeletIdentity
+#     # echo "Successfully assigned Managed Identity to VMSS: $VMSS"
+#        echo "Checking Managed Identity for VMSS: $VMSS"
 
-    # Check if the VMSS already has the managed identity
-    IDENTITY_CHECK=$(az vmss show --name "$VMSS" --resource-group dala-aks-runner8 --query "identity.userAssignedIdentities['$MANAGED_IDENTITY']" --output tsv)
+#     # Check if the VMSS already has the managed identity
+#     IDENTITY_CHECK=$(az vmss show --name "$VMSS" --resource-group dala-aks-runner8 --query "identity.userAssignedIdentities['$MANAGED_IDENTITY']" --output tsv)
 
-    if [[ -n "$IDENTITY_CHECK" ]]; then
-        echo "Managed Identity is already assigned to VMSS: $VMSS. Skipping assignment."
-    else
-        echo "Managed Identity not found for VMSS: $VMSS. Assigning now..."
-        az vmss identity assign --name "$VMSS" --resource-group dala-aks-runner8 --identities "$MANAGED_IDENTITY"
-        echo "Successfully assigned Managed Identity to VMSS: $VMSS"
-    fi
-done
+#     if [[ -n "$IDENTITY_CHECK" ]]; then
+#         echo "Managed Identity is already assigned to VMSS: $VMSS. Skipping assignment."
+#     else
+#         echo "Managed Identity not found for VMSS: $VMSS. Assigning now..."
+#         az vmss identity assign --name "$VMSS" --resource-group dala-aks-runner8 --identities "$MANAGED_IDENTITY"
+#         echo "Successfully assigned Managed Identity to VMSS: $VMSS"
+#     fi
+# done
 
-# echo "Deploying cns ConfigMap and DaemonSet..."
-# Deploy the cns ConfigMap
-echo "Deploying azure_cns_configmap.yaml to namespace default..."
-kubectl apply -f azure_cns_configmap.yaml -n default
+# # echo "Deploying cns ConfigMap and DaemonSet..."
+# # Deploy the cns ConfigMap
+# echo "Deploying azure_cns_configmap.yaml to namespace default..."
+# kubectl apply -f azure_cns_configmap.yaml -n default
 
-# Deploy the cns DaemonSet
-echo "Deploying azure_cns_daemonset.yaml to namespace default..."
-kubectl apply -f azure_cns_daemonset.yaml -n default
+# # Deploy the cns DaemonSet
+# echo "Deploying azure_cns_daemonset.yaml to namespace default..."
+# kubectl apply -f azure_cns_daemonset.yaml -n default
 
 
 
