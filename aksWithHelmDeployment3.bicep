@@ -390,7 +390,7 @@ resource storageContributor 'Microsoft.Authorization/roleAssignments@2022-04-01'
 
 param randomGuid string = newGuid()
 
-// // Subnet delegation script
+// Subnet delegation script
 // resource ds 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
 //   #disable-next-line use-stable-resource-identifiers
 //   name: 'ds-subnetdelegator-${uniqueString(resourceGroup().name)}' 
@@ -461,6 +461,8 @@ resource helmScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
     // scriptContent: 'echo "abc..."'
     primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/joinVMSS.sh'
     arguments: '-g ${rg} -c ${clusterName} -b linux.bicep -p 123aA! -u 9b8218f9-902a-4d20-a65c-e98acec5362f -v ${infraVnetName} -s ${subnetName}'
+    //primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/test.sh'
+    //arguments: '-a ${ds.properties.outputs.salToken}'
     supportingScriptUris: [
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/linux.bicep'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/provisionscript.bicep'
@@ -487,11 +489,44 @@ resource helmScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_configmap.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/test.sh'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_configmap_pubsubproxy.yaml'
+      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/container1.yaml'
+      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/container2.yaml'
     ]
   }
   // tags: {
   //   'Az.Sec.DisableLocalAuth.Storage::Skip': 'Temporary bypass for deployment'
   // }
+}
+
+output instanceNames array = helmScript.properties.outputs.instanceNames
+
+resource testDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+  name: 'test-${uniqueString(resourceGroup().name)}'
+  kind: 'AzureCLI'
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${userAssignedIdentity.id}': {}
+    }
+  }
+  location: region
+  dependsOn: [
+    helmScript
+    // cluster
+    // aksRoleAssignment
+    // containerRoleAssignment
+  ]
+  properties: {
+    azCliVersion: '2.60.0'
+    forceUpdateTag: randomGuid
+    retentionInterval: 'PT2H'
+    cleanupPreference: 'OnExpiration'
+    timeout: 'PT20M'
+    scriptContent: '''
+      #!/bin/bash
+      echo "Instance Names: ${helmScript.properties.outputs.instanceNames}"
+    '''
+  }
 }
 
 
