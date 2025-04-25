@@ -68,7 +68,7 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 ############################################################
 
 echo "Labeling worker nodes..."
-WORKER_NODES=("linuxpool180000000", "linuxpool181000000") # TODO : make it come from inputs
+WORKER_NODES=("linuxpool180000000" "linuxpool181000000") # TODO : make it come from inputs
 # Label key and value
 LABEL_KEY="kubernetes.azure.com/mode"
 LABEL_VALUE="user"
@@ -80,7 +80,7 @@ for NODE in "${WORKER_NODES[@]}"; do
 done
 
 
-WORKER_VMSSES=("linuxpool180", "linuxpool181") # TODO : make it come from inputs
+WORKER_VMSSES=("linuxpool180" "linuxpool181") # TODO : make it come from inputs
 # Assign MI to worker nodes to access runner worker image
 echo "Assigning Managed Identity to worker nodes..."
 for VMSS in "${WORKER_VMSSES[@]}"; do
