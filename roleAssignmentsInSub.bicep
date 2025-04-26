@@ -117,7 +117,7 @@ resource managedIdentityContributorRoleAssignment 'Microsoft.Authorization/roleA
   scope: subscription()
   properties: {
     principalId: principalId
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b') // Managed Identity Contributor Role
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'e40ec5ca-96e0-45a2-b4ff-59039f2c2b59') // Managed Identity Contributor Role
     principalType: 'ServicePrincipal'
   }
 }
