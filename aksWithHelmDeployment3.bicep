@@ -16,9 +16,7 @@ param delegatedSubnetName string = 'delegatedSubnet'
 param subnetDelegatorEnvironment string = 'env-westus-u3h4j'
 param subnetDelegatorName string = 'subnetdelegator-westus-u3h4j'
 param subnetDelegatorRg string = 'subnetdelegator-westus'
-
 var subnetName = 'infraSubnet'
-
 var dataActions = [
   'Microsoft.DocumentDB/databaseAccounts/readMetadata'
   'Microsoft.DocumentDB/databaseAccounts/throughputSettings/*'
@@ -28,6 +26,21 @@ var dataActions = [
   'Microsoft.DocumentDB/databaseAccounts/tables/containers/executeStoredProcedure'
   'Microsoft.DocumentDB/databaseAccounts/tables/containers/entities/*'
 ] 
+
+//////////////////////////////////////
+resource testIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
+  name: 'testKubeletIdentity'
+  location: region
+}
+
+module roleAssignments './roleAssignmentsInSub.bicep' = {
+  name: 'roleAssignmentsDeployment'
+  scope: subscription() // Explicitly set the module scope to subscription
+  params: {
+    principalId: testIdentity.properties.principalId
+  }
+}
+//////////////////////////////////////////
 
 resource customRole 'Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions@2024-12-01-preview' = {
   name: guid(cosmosdb.id, 'DncCosmosDbRbacRole')
@@ -187,32 +200,46 @@ resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' existin
 }
 
 
-resource customerVnet 'Microsoft.Network/virtualNetworks@2021-08-01' existing = {
+resource customerVnet 'Microsoft.Network/virtualNetworks@2021-08-01' = {
   name: 'customerVnet'
-  // location: region
-  // properties: {
-  //   addressSpace: {
-  //     addressPrefixes: [
-  //       '10.0.0.0/16'
-  //     ]
-  //   }
-  //   subnets: [
-  //     {
-  //       name: 'delegatedSubnet'
-  //       properties: {
-  //         addressPrefix: '10.0.0.0/24'
-  //         delegations: [
-  //           {
-  //             name: 'dnc'
-  //             properties: {
-  //               serviceName: 'Microsoft.SubnetDelegator/msfttestclients'
-  //             }
-  //           }
-  //         ]
-  //       }
-  //     }
-  //   ]
-  // }
+  location: region
+  properties: {
+    addressSpace: {
+      addressPrefixes: [
+        '10.0.0.0/16'
+      ]
+    }
+    subnets: [
+      {
+        name: 'delegatedSubnet'
+        properties: {
+          addressPrefix: '10.0.0.0/24'
+          delegations: [
+            {
+              name: 'dnc'
+              properties: {
+                serviceName: 'Microsoft.SubnetDelegator/msfttestclients'
+              }
+            }
+          ]
+        }
+      }
+      {
+        name: 'delegatedSubnet1'
+        properties: {
+          addressPrefix: '10.0.1.0/24'
+          delegations: [
+            {
+              name: 'dnc1'
+              properties: {
+                serviceName: 'Microsoft.SubnetDelegator/msfttestclients'
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
 }
 
 resource cluster 'Microsoft.ContainerService/managedClusters@2024-02-01' existing = {
@@ -322,9 +349,9 @@ resource cosmosdb 'Microsoft.DocumentDB/databaseAccounts@2022-05-15' existing = 
 }
 
 
-resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
+resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' existing = {
   name: 'helm-script-msi3'
-  location: region
+  // location: region
 }
 
 resource storageFileDataPrivilegedContributor 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
@@ -500,34 +527,35 @@ resource helmScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
 
 output instanceNames array = helmScript.properties.outputs.instanceNames
 
-// resource testDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
-//   name: 'test-${uniqueString(resourceGroup().name)}'
-//   kind: 'AzureCLI'
-//   identity: {
-//     type: 'UserAssigned'
-//     userAssignedIdentities: {
-//       '${userAssignedIdentity.id}': {}
-//     }
-//   }
-//   location: region
-//   dependsOn: [
-//     helmScript
-//     // cluster
-//     // aksRoleAssignment
-//     // containerRoleAssignment
-//   ]
-//   properties: {
-//     azCliVersion: '2.60.0'
-//     forceUpdateTag: randomGuid
-//     retentionInterval: 'PT2H'
-//     cleanupPreference: 'OnExpiration'
-//     timeout: 'PT20M'
-//     scriptContent: '''
-//       #!/bin/bash
-//       echo "Instance Names: ${helmScript.properties.outputs.instanceNames}"
-//     '''
-//   }
-// }
+resource testDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+  name: 'test-${uniqueString(resourceGroup().name)}'
+  kind: 'AzureCLI'
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${userAssignedIdentity.id}': {}
+    }
+  }
+  location: region
+  dependsOn: [
+  
+    // cluster
+    // aksRoleAssignment
+    // containerRoleAssignment
+  ]
+  properties: {
+    azCliVersion: '2.60.0'
+    forceUpdateTag: randomGuid
+    retentionInterval: 'PT2H'
+    cleanupPreference: 'OnExpiration'
+    timeout: 'PT20M'
+    scriptContent: '''
+      #!/bin/bash
+      echo "Instance Names: $1"
+    '''
+    arguments: '${helmScript.properties.outputs.instanceNames}'
+  }
+}
 
 
 // // Cleanup script
