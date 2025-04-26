@@ -65,183 +65,226 @@ fi
 DNC_URL="http://localhost:$LOCAL_PORT"
 echo "Successfully port forwarded to DNC: $DNC_URL"
 
-############################################################
-DNC_API_ENDPOINT=$DNC_URL  # Replace with the actual DNC endpoint
-POD_NAMESPACE="default"  # Replace with the pod namespace
-RETRY_COUNT=20  # Number of retry attempts
-RETRY_DELAY=3  # Delay between retries in seconds
-IP_CONSTRAINT=""
-NODE_CONSTRAINT=""
-SECONDARY_IP_COUNT=0
-PRIMARY_IP_PREFIX_BITS=0
-CONTAINER_TYPE="AzureContainerInstance"
-OWNER_ID=""
-RESERVATION_ID=""
-RESERVATION_SET_ID=""
-HOST_TO_NC=false
-NC_TO_HOST=false
-nc_id=""
-
-NC_NODES=(
-  # "linuxpool180000000|10.224.0.90|container1-pod"  # Format: NODE_NAME|NODE_IP|POD_NAME TODO: Make it come from inputs
-  "linuxpool181000000|10.224.0.94|container2-pod"
+##############################################################
+# Define an array of pods with their details
+PODS=(
+  "container1-pod|linuxpool180000000|container1.yaml|cx=vm1"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR TODO: Make it come from inputs
+  "container2-pod|linuxpool181000000|container2.yaml|cx=vm2"
 )
-CUSTOMER_VNET_GUID="3f84330f-6410-4996-bb28-78513d2eb093"  # TODO: make it come from inputs
-CUSTOMER_SUBNET_NAME="delegatedSubnet" # TODO: make it come from inputs
 
+NAMESPACE="default"  # Replace with the namespace of the DNC deployment
+POD_HEALTH_CHECK_RETRY_COUNT=10  # Number of retry attempts
+POD_HEALTH_CHECK_RETRY_DELAY=5  # Delay between retries in seconds
 
-# Function to create a network container (NC)
-create_nc() {
-  local NODE_NAME=$1
-  local NODE_IP=$2
-  local POD_NAME=$3
-  local NC_ID=$(uuidgen)  # Generate a unique NC ID
-  nc_id="$NC_ID"  # Store the NC ID for later use
-  echo "Attempting to create NC: $NC_ID on node: $NODE_NAME with pod: $POD_NAME"
+# Function to deploy a pod
+deploy_pod() {
+  local POD_NAME=$1
+  local NODE_NAME=$2
+  local POD_YAML=$3
+  local LABEL_SELECTOR=$4
 
-  # Construct the NC request payload
-  if [[ -z "$RESERVATION_ID" && -z "$RESERVATION_SET_ID" ]]; then
-    # V2 request
-    nc_request=$(cat <<EOF
-{
-  "AllocationRequest": {
-    "SubnetName": "$CUSTOMER_SUBNET_NAME",
-    "IPConstraint": "$IP_CONSTRAINT",
-    "NodeConstraint": "$NODE_CONSTRAINT",
-    "SecondaryIPCount": $SECONDARY_IP_COUNT,
-    "PrimaryIPPrefixBits": $PRIMARY_IP_PREFIX_BITS
-  },
-  "AssociationInfo": {
-    "NodeID": "$NODE_NAME",
-    "InterfaceID": "$NODE_IP",
-    "ContainerType": "$CONTAINER_TYPE",
-    "OrchestratorContext": {
-      "PodName": "$POD_NAME",
-      "PodNamespace": "$POD_NAMESPACE"
-    }
-  },
-  "AllowHostToNCCommunication": $HOST_TO_NC,
-  "AllowNCToHostCommunication": $NC_TO_HOST,
-  "OwnerID": "$OWNER_ID"
-}
-EOF
-    )
-  else
-    # V1 request
-    nc_request=$(cat <<EOF
-{
-  "ReservationID": "$RESERVATION_ID",
-  "ReservationSetID": "$RESERVATION_SET_ID",
-  "AssociationInfo": {
-    "NodeID": "$NODE_NAME",
-    "InterfaceID": "$NODE_IP",
-    "ContainerType": "$CONTAINER_TYPE",
-    "OrchestratorContext": {
-      "PodName": "$POD_NAME",
-      "PodNamespace": "$POD_NAMESPACE"
-    }
-  },
-  "AllowHostToNCCommunication": $HOST_TO_NC,
-  "AllowNCToHostCommunication": $NC_TO_HOST,
-  "OwnerID": "$OWNER_ID"
-}
-EOF
-    )
-  fi
+  echo "Deploying pod: $POD_NAME on node: $NODE_NAME with YAML: $POD_YAML"
 
-  echo "NC request payload: $nc_request"
+  # Label the node
+  kubectl label node "$NODE_NAME" "$LABEL_SELECTOR" --overwrite
 
-  # Send the POST request to create the NC
-  response=$(curl -s -w "%{http_code}" -o /tmp/create_nc_response_$NC_ID.json -X POST "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/networkcontainer/$NC_ID?api-version=2018-03-01" \
-    -H "Content-Type: application/json" \
-    -d "$nc_request")
+  # Apply the pod YAML
+  kubectl apply -f "$POD_YAML" -n "$NAMESPACE"
 
-  # Extract HTTP status code
-  http_status=$(tail -n1 <<< "$response")
-
-  # Check if the request was successful or if there was a conflict
-  if [[ "$http_status" -ne 200 && "$http_status" -ne 409 ]]; then
-    echo "Failed to create NC $NC_ID. HTTP status: $http_status"
-    cat /tmp/create_nc_response_$NC_ID.json
-    return 1
-  fi
-
-  echo "Successfully created NC: $NC_ID"
-  cat /tmp/create_nc_response_$NC_ID.json
+  echo "Pod $POD_NAME deployed"
 }
 
-# Function to poll the NC status
-poll_nc_status() {
-  local NC_ID=$1
+# Main script logic
+echo "Starting orchestration..."
 
-  echo "Polling status of NC: $NC_ID"
+# Iterate over the pods and deploy each one
+for pod in "${PODS[@]}"; do
+  IFS="|" read -r POD_NAME NODE_NAME POD_YAML LABEL_SELECTOR <<< "$pod"
 
-  # Send the GET request to check the NC status
-  response=$(curl -s -w "%{http_code}" -o /tmp/nc_status_response_$NC_ID.json -X GET "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/networkcontainer/$NC_ID/status?api-version=2018-03-01" \
-    -H "Content-Type: application/json")
+  # Deploy the pod
+  deploy_pod "$POD_NAME" "$NODE_NAME" "$POD_YAML" "$LABEL_SELECTOR"
 
-  # Extract HTTP status code
-  http_status=$(tail -n1 <<< "$response")
-
-  # Check if the request was successful
-  if [[ "$http_status" -ne 200 ]]; then
-    echo "Failed to get status for NC $NC_ID. HTTP status: $http_status"
-    cat /tmp/nc_status_response_$NC_ID.json
-    return 1
-  fi
-
-  # Parse the status from the response
-  nc_status=$(jq -r '.Status' /tmp/nc_status_response_$NC_ID.json)
-  if [[ "$nc_status" != "Completed" ]]; then
-    echo "NC $NC_ID status is not 'Completed'. Current status: $nc_status"
-    return 1
-  fi
-
-  echo "NC $NC_ID status is 'Completed'."
-}
-
-# Iterate over the nodes and register NCs for each
-for node in "${NC_NODES[@]}"; do
-  IFS="|" read -r NODE_NAME NODE_IP POD_NAME <<< "$node"
-
-  # Retry logic for creating the NC
-  attempt=1
-  while [[ $attempt -le $RETRY_COUNT ]]; do
-    if create_nc "$NODE_NAME" "$NODE_IP" "$POD_NAME"; then
-      echo "Create NC succeeded on attempt $attempt for node: $NODE_NAME."
-      break
-    fi
-
-    echo "Create NC failed on attempt $attempt for node: $NODE_NAME. Retrying in $RETRY_DELAY seconds..."
-    sleep "$RETRY_DELAY"
-    attempt=$((attempt + 1))
-  done
-
-  if [[ $attempt -gt $RETRY_COUNT ]]; then
-    echo "Failed to create NC for node: $NODE_NAME after $RETRY_COUNT attempts."
-    exit 1
-  fi
-
-  # Retry logic for polling the NC status
-  attempt=1
-  while [[ $attempt -le $RETRY_COUNT ]]; do
-    if poll_nc_status "$nc_id"; then
-      echo "NC status check succeeded on attempt $attempt for node: $NODE_NAME."
-      break
-    fi
-
-    echo "NC status check failed on attempt $attempt for node: $NODE_NAME and nc: $nc_id. Retrying in $RETRY_DELAY seconds..."
-    sleep "$RETRY_DELAY"
-    attempt=$((attempt + 1))
-  done
-
-  if [[ $attempt -gt $RETRY_COUNT ]]; then
-    echo "Failed to verify NC status for node: $NODE_NAME after $RETRY_COUNT attempts."
-    exit 1
-  fi
 done
 
-echo "All NCs registered and verified successfully!"
+# echo "All pods deployed and verified successfully."
+
+############################################################
+# DNC_API_ENDPOINT=$DNC_URL  # Replace with the actual DNC endpoint
+# POD_NAMESPACE="default"  # Replace with the pod namespace
+# RETRY_COUNT=20  # Number of retry attempts
+# RETRY_DELAY=3  # Delay between retries in seconds
+# IP_CONSTRAINT=""
+# NODE_CONSTRAINT=""
+# SECONDARY_IP_COUNT=0
+# PRIMARY_IP_PREFIX_BITS=0
+# CONTAINER_TYPE="AzureContainerInstance"
+# OWNER_ID=""
+# RESERVATION_ID=""
+# RESERVATION_SET_ID=""
+# HOST_TO_NC=false
+# NC_TO_HOST=false
+# nc_id=""
+
+# NC_NODES=(
+#   "linuxpool180000000|10.224.0.90|container1-pod"  # Format: NODE_NAME|NODE_IP|POD_NAME TODO: Make it come from inputs
+#   "linuxpool181000000|10.224.0.94|container2-pod"
+# )
+# CUSTOMER_VNET_GUID="3f84330f-6410-4996-bb28-78513d2eb093"  # TODO: make it come from inputs
+# CUSTOMER_SUBNET_NAME="delegatedSubnet" # TODO: make it come from inputs
+
+
+# # Function to create a network container (NC)
+# create_nc() {
+#   local NODE_NAME=$1
+#   local NODE_IP=$2
+#   local POD_NAME=$3
+#   local NC_ID=$(uuidgen)  # Generate a unique NC ID
+#   nc_id="$NC_ID"  # Store the NC ID for later use
+#   echo "Attempting to create NC: $NC_ID on node: $NODE_NAME with pod: $POD_NAME"
+
+#   # Construct the NC request payload
+#   if [[ -z "$RESERVATION_ID" && -z "$RESERVATION_SET_ID" ]]; then
+#     # V2 request
+#     nc_request=$(cat <<EOF
+# {
+#   "AllocationRequest": {
+#     "SubnetName": "$CUSTOMER_SUBNET_NAME",
+#     "IPConstraint": "$IP_CONSTRAINT",
+#     "NodeConstraint": "$NODE_CONSTRAINT",
+#     "SecondaryIPCount": $SECONDARY_IP_COUNT,
+#     "PrimaryIPPrefixBits": $PRIMARY_IP_PREFIX_BITS
+#   },
+#   "AssociationInfo": {
+#     "NodeID": "$NODE_NAME",
+#     "InterfaceID": "$NODE_IP",
+#     "ContainerType": "$CONTAINER_TYPE",
+#     "OrchestratorContext": {
+#       "PodName": "$POD_NAME",
+#       "PodNamespace": "$POD_NAMESPACE"
+#     }
+#   },
+#   "AllowHostToNCCommunication": $HOST_TO_NC,
+#   "AllowNCToHostCommunication": $NC_TO_HOST,
+#   "OwnerID": "$OWNER_ID"
+# }
+# EOF
+#     )
+#   else
+#     # V1 request
+#     nc_request=$(cat <<EOF
+# {
+#   "ReservationID": "$RESERVATION_ID",
+#   "ReservationSetID": "$RESERVATION_SET_ID",
+#   "AssociationInfo": {
+#     "NodeID": "$NODE_NAME",
+#     "InterfaceID": "$NODE_IP",
+#     "ContainerType": "$CONTAINER_TYPE",
+#     "OrchestratorContext": {
+#       "PodName": "$POD_NAME",
+#       "PodNamespace": "$POD_NAMESPACE"
+#     }
+#   },
+#   "AllowHostToNCCommunication": $HOST_TO_NC,
+#   "AllowNCToHostCommunication": $NC_TO_HOST,
+#   "OwnerID": "$OWNER_ID"
+# }
+# EOF
+#     )
+#   fi
+
+#   echo "NC request payload: $nc_request"
+
+#   # Send the POST request to create the NC
+#   response=$(curl -s -w "%{http_code}" -o /tmp/create_nc_response_$NC_ID.json -X POST "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/networkcontainer/$NC_ID?api-version=2018-03-01" \
+#     -H "Content-Type: application/json" \
+#     -d "$nc_request")
+
+#   # Extract HTTP status code
+#   http_status=$(tail -n1 <<< "$response")
+
+#   # Check if the request was successful or if there was a conflict
+#   if [[ "$http_status" -ne 200 && "$http_status" -ne 409 ]]; then
+#     echo "Failed to create NC $NC_ID. HTTP status: $http_status"
+#     cat /tmp/create_nc_response_$NC_ID.json
+#     return 1
+#   fi
+
+#   echo "Successfully created NC: $NC_ID"
+#   cat /tmp/create_nc_response_$NC_ID.json
+# }
+
+# # Function to poll the NC status
+# poll_nc_status() {
+#   local NC_ID=$1
+
+#   echo "Polling status of NC: $NC_ID"
+
+#   # Send the GET request to check the NC status
+#   response=$(curl -s -w "%{http_code}" -o /tmp/nc_status_response_$NC_ID.json -X GET "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/networkcontainer/$NC_ID/status?api-version=2018-03-01" \
+#     -H "Content-Type: application/json")
+
+#   # Extract HTTP status code
+#   http_status=$(tail -n1 <<< "$response")
+
+#   # Check if the request was successful
+#   if [[ "$http_status" -ne 200 ]]; then
+#     echo "Failed to get status for NC $NC_ID. HTTP status: $http_status"
+#     cat /tmp/nc_status_response_$NC_ID.json
+#     return 1
+#   fi
+
+#   # Parse the status from the response
+#   nc_status=$(jq -r '.Status' /tmp/nc_status_response_$NC_ID.json)
+#   if [[ "$nc_status" != "Completed" ]]; then
+#     echo "NC $NC_ID status is not 'Completed'. Current status: $nc_status"
+#     return 1
+#   fi
+
+#   echo "NC $NC_ID status is 'Completed'."
+# }
+
+# # Iterate over the nodes and register NCs for each
+# for node in "${NC_NODES[@]}"; do
+#   IFS="|" read -r NODE_NAME NODE_IP POD_NAME <<< "$node"
+
+#   # Retry logic for creating the NC
+#   attempt=1
+#   while [[ $attempt -le $RETRY_COUNT ]]; do
+#     if create_nc "$NODE_NAME" "$NODE_IP" "$POD_NAME"; then
+#       echo "Create NC succeeded on attempt $attempt for node: $NODE_NAME."
+#       break
+#     fi
+
+#     echo "Create NC failed on attempt $attempt for node: $NODE_NAME. Retrying in $RETRY_DELAY seconds..."
+#     sleep "$RETRY_DELAY"
+#     attempt=$((attempt + 1))
+#   done
+
+#   if [[ $attempt -gt $RETRY_COUNT ]]; then
+#     echo "Failed to create NC for node: $NODE_NAME after $RETRY_COUNT attempts."
+#     exit 1
+#   fi
+
+#   # Retry logic for polling the NC status
+#   attempt=1
+#   while [[ $attempt -le $RETRY_COUNT ]]; do
+#     if poll_nc_status "$nc_id"; then
+#       echo "NC status check succeeded on attempt $attempt for node: $NODE_NAME."
+#       break
+#     fi
+
+#     echo "NC status check failed on attempt $attempt for node: $NODE_NAME and nc: $nc_id. Retrying in $RETRY_DELAY seconds..."
+#     sleep "$RETRY_DELAY"
+#     attempt=$((attempt + 1))
+#   done
+
+#   if [[ $attempt -gt $RETRY_COUNT ]]; then
+#     echo "Failed to verify NC status for node: $NODE_NAME after $RETRY_COUNT attempts."
+#     exit 1
+#   fi
+# done
+
+# echo "All NCs registered and verified successfully!"
 
 
 #############################################################################
