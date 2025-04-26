@@ -47,7 +47,7 @@ resource networkContributorRoleAssignment 'Microsoft.Authorization/roleAssignmen
   scope: subscription() // Set the scope to the subscription level
   properties: {
     principalId: principalId
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'eabd9c6f-8c9f-4d7e-8e7c-8d7e8e7c8d7e') // Network Contributor Role
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4d97b98b-1d4f-4787-a291-c67834d212e7') // Network Contributor Role
     principalType: 'ServicePrincipal'
   }
 }
@@ -57,7 +57,7 @@ resource storageFileDataPrivilegedContributorRoleAssignment 'Microsoft.Authoriza
   scope: subscription()
   properties: {
     principalId: principalId
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f4c5831-68a9-4d15-b62f-a9d9e5309b97') // Storage File Data Privileged Contributor Role
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '69566ab7-960f-475b-8e7c-b3118f30c6bd') // Storage File Data Privileged Contributor Role
     principalType: 'ServicePrincipal'
   }
 }
@@ -77,7 +77,7 @@ resource aksRbacAdminRoleAssignment 'Microsoft.Authorization/roleAssignments@202
   scope: subscription()
   properties: {
     principalId: principalId
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'e4a2ae05-4b1a-4c18-b9e4-2a3ade6e82b7') // Azure Kubernetes Service RBAC Admin Role
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3498e952-d568-435e-9b2c-8d77e338d7f7') // Azure Kubernetes Service RBAC Admin Role
     principalType: 'ServicePrincipal'
   }
 }
@@ -107,7 +107,7 @@ resource vmContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@20
   scope: subscription()
   properties: {
     principalId: principalId
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '998b4e8f-9f1e-4dc0-8c7e-5d63b7de9f4b') // Virtual Machine Contributor Role
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '9980e02c-c2be-4d73-94e8-173b1dc7cf3c') // Virtual Machine Contributor Role
     principalType: 'ServicePrincipal'
   }
 }
@@ -127,7 +127,7 @@ resource aksRbacReaderRoleAssignment 'Microsoft.Authorization/roleAssignments@20
   scope: subscription()
   properties: {
     principalId: principalId
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'e5a5b6f6-7c8e-4f5b-8b3e-3f3e8e7c8d7e') // Azure Kubernetes Service RBAC Reader Role
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f6c6a51-bcf8-42ba-9220-52d62157d7db') // Azure Kubernetes Service RBAC Reader Role
     principalType: 'ServicePrincipal'
   }
 }
@@ -137,7 +137,7 @@ resource aksContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2
   scope: subscription()
   properties: {
     principalId: principalId
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'fdfdfdfd-1234-5678-9abc-123456789abc') // Azure Kubernetes Service Contributor Role
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ed7f3fbd-7b88-4dd4-9017-9adb7ce333f8') // Azure Kubernetes Service Contributor Role
     principalType: 'ServicePrincipal'
   }
 }
