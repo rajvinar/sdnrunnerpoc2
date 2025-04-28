@@ -69,8 +69,8 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 ##############################################################
 # Define an array of pods with their details
 PODS=(
-  "container1-pod|linuxpool180000000|container1.yaml|cx=vm1"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR TODO: Make it come from inputs
-  "container2-pod|linuxpool181000000|container2.yaml|cx=vm2"
+  "container1-pod|linuxpool180000000|container1.yaml|cx=vm1|container1-service"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR TODO: Make it come from inputs
+  "container2-pod|linuxpool181000000|container2.yaml|cx=vm2|container2-service"
 )
 
 NAMESPACE="default"  # Replace with the namespace of the DNC deployment
@@ -103,10 +103,21 @@ echo "Starting orchestration..."
 
 # Iterate over the pods and deploy each one
 for pod in "${PODS[@]}"; do
-  IFS="|" read -r POD_NAME NODE_NAME POD_YAML LABEL_SELECTOR <<< "$pod"
+  IFS="|" read -r POD_NAME NODE_NAME POD_YAML LABEL_SELECTOR SERVICE_NAME <<< "$pod"
 
   # Deploy the pod
   deploy_pod "$POD_NAME" "$NODE_NAME" "$POD_YAML" "$LABEL_SELECTOR"
+
+  # Get the private IP of the pod
+  PRIVATE_IP=$(kubectl get pod "$POD_NAME" -n "$NAMESPACE" -o jsonpath='{.status.podIP}')
+  echo "Private IP of Pod $POD_NAME: $PRIVATE_IP"
+
+  # Get the public IP and FQDN of the service
+  PUBLIC_IP=$(kubectl get service "$SERVICE_NAME" -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+  PUBLIC_FQDN=$(kubectl get service "$SERVICE_NAME" -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+  echo "Public IP of Service $SERVICE_NAME: $PUBLIC_IP"
+  echo "Public FQDN of Service $SERVICE_NAME: $PUBLIC_FQDN"
 
 done
 
