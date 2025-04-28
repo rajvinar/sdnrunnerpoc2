@@ -15,7 +15,7 @@ usage() {
     echo "  -W <worker-vmsses>        : Comma-separated list of worker VMSS names"
     echo "  -D <dnc-vmsses>           : Comma-separated list of DNC VMSS names"
     echo "  -V <customer-vnet-id>     : ID of the customer virtual network"
-    echo "  -S <customer-subnet-name> : Name of the customer subnet"
+    echo "  -S <customer-subnet-names> : Comma-separated list of customer subnet names"
     echo "  -P <pods>                 : Comma-separated list of pod details in the format 'pod-name|node-name|yaml-file|label-selector'"
     echo "  -N <dnc-pod-name>         : Name of the DNC pod for port forwarding"
     echo "  -n <nc-nodes>             : Comma-separated list of node details in the format 'node-name|node-ip|pod-name'"
@@ -35,7 +35,7 @@ while getopts "g:c:b:p:v:s:u:w:d:W:D:V:S:P:N:n:o:m:" opt; do
         W) WORKER_VMSSES_INPUT="$OPTARG" ;;
         D) DNC_VMSSES_INPUT="$OPTARG" ;;
         V) CUSTOMER_VNET_ID="$OPTARG" ;;
-        S) CUSTOMER_SUBNET_NAME="$OPTARG" ;;
+        S) CUSTOMER_SUBNET_NAMES_INPUT="$OPTARG" ;; 
         P) PODS_INPUT="$OPTARG" ;;
         N) DNC_POD_NAME="$OPTARG" ;;
         n) NC_NODES_INPUT="$OPTARG" ;;
@@ -74,8 +74,8 @@ fi
 if [[ -z "${CUSTOMER_VNET_ID:-}" ]]; then
     missing_params+=("-V <customer-vnet-id>")
 fi
-if [[ -z "${CUSTOMER_SUBNET_NAME:-}" ]]; then
-    missing_params+=("-S <customer-subnet-name>")
+if [[ -z "${CUSTOMER_SUBNET_NAMES_INPUT:-}" ]]; then
+    missing_params+=("-S <customer-subnet-names>")
 fi
 if [[ -z "${PODS_INPUT:-}" ]]; then
     missing_params+=("-P <pods>")
@@ -109,6 +109,8 @@ IFS=',' read -r -a DNC_VMSSES <<< "$DNC_VMSSES_INPUT"
 IFS=',' read -r -a PODS <<< "$PODS_INPUT"
 IFS=',' read -r -a NC_NODES <<< "$NC_NODES_INPUT"
 IFS=',' read -r -a NODES <<< "$NODES_INPUT"  # Convert nodes input into an array
+IFS=',' read -r -a CUSTOMER_SUBNET_NAMES <<< "$CUSTOMER_SUBNET_NAMES_INPUT"
+
 
 az account set -s $SUBSCRIPTION_ID
 
@@ -157,6 +159,8 @@ if ! command -v helm &> /dev/null; then
 fi
 
 apk add --no-cache util-linux
+apk add --no-cache jq
+apk add --no-cache gettext
 
 
 # Label the worker nodes and deploy the cns ConfigMap and DaemonSet
@@ -346,10 +350,11 @@ RETRY_COUNT=20  # Number of retry attempts
 RETRY_DELAY=3  # Delay between retries in seconds
 
 CUSTOMER_VNET_GUID="3f84330f-6410-4996-bb28-78513d2eb093"  # # This is customer vnet id. TODO: Make it come from inputs 
-CUSTOMER_SUBNET_NAME="delegatedSubnet"  # TODO: Make it come from inputs 
+CUSTOMER_SUBNET_NAMES=("delegatedSubnet" "delegatedSubnet1")  # TODO: Make it come from inputs 
 
 # Function to add a subnet
 add_subnet() {
+  local CUSTOMER_SUBNET_NAME=$1
   echo "Attempting to add subnet: $CUSTOMER_SUBNET_NAME to VNet: $CUSTOMER_VNET_GUID"
   echo "AUTH_TOKEN: $AUTH_TOKEN"
   # Construct the subnet request payload
@@ -383,6 +388,7 @@ EOF
 
 # Function to check the subnet status
 check_subnet_status() {
+  local CUSTOMER_SUBNET_NAME=$1
   echo "Checking status of subnet: $CUSTOMER_SUBNET_NAME in VNet: $CUSTOMER_VNET_GUID"
 
   # Send the GET request to check the subnet status
@@ -409,38 +415,43 @@ check_subnet_status() {
   echo "Subnet $CUSTOMER_SUBNET_NAME is in 'Completed' status."
 }
 
-# Retry logic for adding the subnet
-attempt=1
-while [[ $attempt -le $RETRY_COUNT ]]; do
-  if add_subnet; then
-    echo "Add subnet succeeded on attempt $attempt."
-    break
+# Retry logic for adding the subnets
+for CUSTOMER_SUBNET_NAME in "${CUSTOMER_SUBNET_NAMES[@]}"; do
+  attempt=1
+  while [[ $attempt -le $RETRY_COUNT ]]; do
+    if add_subnet "$CUSTOMER_SUBNET_NAME"; then
+      echo "Add subnet succeeded on attempt $attempt for subnet: $CUSTOMER_SUBNET_NAME."
+      break
+    fi
+
+    echo "Add subnet failed on attempt $attempt for subnet: $CUSTOMER_SUBNET_NAME. Retrying in $RETRY_DELAY seconds..."
+    sleep $RETRY_DELAY
+    attempt=$((attempt + 1))
+  done
+
+  if [[ $attempt -gt $RETRY_COUNT ]]; then
+    echo "Failed to add subnet: $CUSTOMER_SUBNET_NAME after $RETRY_COUNT attempts."
+    exit 1
   fi
 
-  echo "Add subnet failed on attempt $attempt. Retrying in $RETRY_DELAY seconds..."
-  sleep $RETRY_DELAY
-  attempt=$((attempt + 1))
-done
+  # Retry logic for checking the subnet status
+  attempt=1
+  while [[ $attempt -le $RETRY_COUNT ]]; do
+    if check_subnet_status "$CUSTOMER_SUBNET_NAME"; then
+      echo "Subnet status check succeeded on attempt $attempt for subnet: $CUSTOMER_SUBNET_NAME."
+      break
+    fi
 
-if [[ $attempt -gt $RETRY_COUNT ]]; then
-  echo "Failed to add subnet after $RETRY_COUNT attempts."
-  exit 1
-fi
+    echo "Subnet status check failed on attempt $attempt for subnet: $CUSTOMER_SUBNET_NAME. Retrying in $RETRY_DELAY seconds..."
+    sleep $RETRY_DELAY
+    attempt=$((attempt + 1))
+  done
 
-# Retry logic for checking the subnet status
-attempt=1
-while [[ $attempt -le $RETRY_COUNT ]]; do
-  if check_subnet_status; then
-    echo "Subnet status check succeeded on attempt $attempt."
-    exit 0
+  if [[ $attempt -gt $RETRY_COUNT ]]; then
+    echo "Failed to verify subnet status for subnet: $CUSTOMER_SUBNET_NAME after $RETRY_COUNT attempts."
+    exit 1
   fi
-
-  echo "Subnet status check failed on attempt $attempt. Retrying in $RETRY_DELAY seconds..."
-  sleep $RETRY_DELAY
-  attempt=$((attempt + 1))
 done
-
-echo "Failed to verify subnet status after $RETRY_COUNT attempts."
 
 ###################### Register nodes in DNC ######################
 # Define an array of nodes with their details
@@ -520,21 +531,23 @@ RESERVATION_ID=""
 RESERVATION_SET_ID=""
 HOST_TO_NC=false
 NC_TO_HOST=false
+nc_id=""
 
 NC_NODES=(
   "linuxpool160000000|10.224.0.76|container1-pod"  # Format: NODE_NAME|NODE_IP|POD_NAME TODO: Make it come from inputs
   "linuxpool161000000|10.224.0.78|container2-pod"
 )
 CUSTOMER_VNET_GUID="3f84330f-6410-4996-bb28-78513d2eb093"  # TODO: make it come from inputs
-CUSTOMER_SUBNET_NAME="delegatedSubnet" # TODO: make it come from inputs
+CUSTOMER_SUBNET_NAMES=("delegatedSubnet" "delegatedSubnet1")
 
 # Function to create a network container (NC)
 create_nc() {
   local NODE_NAME=$1
   local NODE_IP=$2
   local POD_NAME=$3
+  local CUSTOMER_SUBNET_NAME=$4
   local NC_ID=$(uuidgen)  # Generate a unique NC ID
-
+  nc_id="$NC_ID"
   echo "Attempting to create NC: $NC_ID on node: $NODE_NAME with pod: $POD_NAME"
 
   # Construct the NC request payload
@@ -639,8 +652,9 @@ poll_nc_status() {
 }
 
 # Iterate over the nodes and register NCs for each
-for node in "${NC_NODES[@]}"; do
-  IFS="|" read -r NODE_NAME NODE_IP POD_NAME <<< "$node"
+for index in "${!NC_NODES[@]}"; do
+  IFS="|" read -r NODE_NAME NODE_IP POD_NAME <<< "${NC_NODES[index]}"
+  CUSTOMER_SUBNET_NAME="${CUSTOMER_SUBNET_NAMES[index]}"
 
   # Retry logic for creating the NC
   attempt=1
@@ -663,7 +677,7 @@ for node in "${NC_NODES[@]}"; do
   # Retry logic for polling the NC status
   attempt=1
   while [[ $attempt -le $RETRY_COUNT ]]; do
-    if poll_nc_status "$NC_ID"; then
+    if poll_nc_status "$nc_id"; then
       echo "NC status check succeeded on attempt $attempt for node: $NODE_NAME."
       break
     fi
@@ -691,6 +705,7 @@ PODS=(
 NAMESPACE="default"  # Replace with the namespace of the DNC deployment
 POD_HEALTH_CHECK_RETRY_COUNT=10  # Number of retry attempts
 POD_HEALTH_CHECK_RETRY_DELAY=5  # Delay between retries in seconds
+export RESOURCE_GROUP=$RESOURCE_GROUP
 
 # Function to deploy a pod
 deploy_pod() {
@@ -703,6 +718,8 @@ deploy_pod() {
 
   # Label the node
   kubectl label node "$NODE_NAME" "$LABEL_SELECTOR" --overwrite
+
+  envsubst < "$POD_YAML" > temp.yaml && mv temp.yaml "$POD_YAML"
 
   # Apply the pod YAML
   kubectl apply -f "$POD_YAML" -n "$NAMESPACE"

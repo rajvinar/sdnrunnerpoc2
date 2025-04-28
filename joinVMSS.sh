@@ -481,18 +481,18 @@ echo "{\"instanceNames\": $(printf '%s\n' "${INSTANCE_NAMES[@]}" | jq -R . | jq 
 
 
 
-# # Variables
-# END_TIME=$((SECONDS + 180))  # 30 minutes = 1800 seconds
-# INTERVAL=10  # Interval between iterations in seconds
+# Variables
+END_TIME=$((SECONDS + 180))  # 30 minutes = 1800 seconds
+INTERVAL=10  # Interval between iterations in seconds
 
-# echo "Starting the loop for 30 minutes..."
+echo "Starting the loop for 30 minutes..."
 
-# # Loop for 30 minutes
-# while [ $SECONDS -lt $END_TIME ]; do
-#   echo "Running task at $(date)..."
+# Loop for 30 minutes
+while [ $SECONDS -lt $END_TIME ]; do
+  echo "Running task at $(date)..."
 
-#   # Wait for the specified interval before the next iteration
-#   sleep $INTERVAL
-# done
+  # Wait for the specified interval before the next iteration
+  sleep $INTERVAL
+done
 
-# echo "Loop completed after 30 minutes."
+echo "Loop completed after 30 minutes."

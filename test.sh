@@ -41,6 +41,7 @@ if ! command -v helm &> /dev/null; then
 fi
 
 apk add --no-cache util-linux
+apk add --no-cache gettext
 
 NAMESPACE="default"  # Replace with the namespace of the DNC deployment
 LABEL_SELECTOR="app=dnc"  # Replace with the label selector for the DNC pod
@@ -75,6 +76,7 @@ PODS=(
 NAMESPACE="default"  # Replace with the namespace of the DNC deployment
 POD_HEALTH_CHECK_RETRY_COUNT=10  # Number of retry attempts
 POD_HEALTH_CHECK_RETRY_DELAY=5  # Delay between retries in seconds
+export RESOURCE_GROUP="dala-aks-runner8"
 
 # Function to deploy a pod
 deploy_pod() {
@@ -87,6 +89,8 @@ deploy_pod() {
 
   # Label the node
   kubectl label node "$NODE_NAME" "$LABEL_SELECTOR" --overwrite
+
+  envsubst < "$POD_YAML" > temp.yaml && mv temp.yaml "$POD_YAML"
 
   # Apply the pod YAML
   kubectl apply -f "$POD_YAML" -n "$NAMESPACE"
