@@ -42,8 +42,10 @@ spec:
     app: container1pod
   ports:
   - protocol: TCP
+    name: port1
     port: 443       # Publicly accessible port
     targetPort: 443 # Port on the container
   - protocol: TCP
+    name: port2
     port: 8080      # Publicly accessible port
     targetPort: 8080 # Port on the container
