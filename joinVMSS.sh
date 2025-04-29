@@ -237,9 +237,11 @@ for VMSS_NAME in "${WORKER_VMSSES[@]}"; do
     done
 done
 
+sleep 240
+
 # Label the worker nodes and deploy the cns ConfigMap and DaemonSet
 echo "Labeling worker nodes..."
-WORKER_NODES=("linuxpool180000000" "linuxpool181000000") # TODO : make it come from inputs
+WORKER_NODES=("linuxpool180000000" "linuxpool181000000") # TODO : make it come from inpu
 # Label key and value
 LABEL_KEY="kubernetes.azure.com/mode"
 LABEL_VALUE="user"
@@ -846,7 +848,7 @@ for pod in "${PODS[@]}"; do
   # Deploy the pod
   deploy_pod "$POD_NAME" "$NODE_NAME" "$POD_YAML" "$LABEL_SELECTOR"
 
-  sleep 5
+  sleep 60
 
   # Get the private IP of the pod
   PRIVATE_IP=$(kubectl get pod "$POD_NAME" -n "$NAMESPACE" -o jsonpath='{.status.podIP}')
