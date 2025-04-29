@@ -285,7 +285,7 @@ done
 
 echo "Deploying dnc_deployment.yaml to namespace default..."
 kubectl apply -f dnc_deployment.yaml -n default
-
+sleep 180
 
 ########### Port Forwarding Setup ###########
 DNC_POD=$(kubectl get pods -n default -l app=dnc -o jsonpath='{.items[0].metadata.name}')
