@@ -28,18 +28,18 @@ var dataActions = [
 ] 
 
 //////////////////////////////////////
-resource testIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
-  name: 'testKubeletIdentity'
-  location: region
-}
+// resource testIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
+//   name: 'testKubeletIdentity'
+//   location: region
+// }
 
-module roleAssignments './roleAssignmentsInSub.bicep' = {
-  name: 'roleAssignmentsDeployment'
-  scope: subscription() // Explicitly set the module scope to subscription
-  params: {
-    principalId: testIdentity.properties.principalId
-  }
-}
+// module roleAssignments './roleAssignmentsInSub.bicep' = {
+//   name: 'roleAssignmentsDeployment'
+//   scope: subscription() // Explicitly set the module scope to subscription
+//   params: {
+//     principalId: testIdentity.properties.principalId
+//   }
+// }
 //////////////////////////////////////////
 
 resource customRole 'Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions@2024-12-01-preview' = {
@@ -59,9 +59,9 @@ resource customRole 'Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions@
   }
 }
 
-resource aksClusterKubeletIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' existing = {
+resource aksClusterKubeletIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
   name: 'aksClusterKubeletIdentity'
-  // location: region
+  location: region
 }
 
 resource cosmosdbRoleAssignmentForDNC 'Microsoft.DocumentDB/databaseAccounts/tableRoleAssignments@2024-12-01-preview' = {
@@ -71,6 +71,14 @@ resource cosmosdbRoleAssignmentForDNC 'Microsoft.DocumentDB/databaseAccounts/tab
     principalId: aksClusterKubeletIdentity.properties.principalId
     roleDefinitionId: customRole.id
     scope: cosmosdb.id
+  }
+}
+
+module roleAssignments './roleAssignmentsInSub.bicep' = {
+  name: 'roleAssignmentsDeployment'
+  scope: subscription() // Explicitly set the module scope to subscription
+  params: {
+    principalId: aksClusterKubeletIdentity.properties.principalId
   }
 }
 
@@ -84,119 +92,119 @@ resource subnetDelegatorAcaEnv 'Microsoft.App/managedEnvironments@2024-10-02-pre
   scope: resourceGroup(subnetDelegatorRg)
 }
 
-resource ip 'Microsoft.Network/publicIPAddresses@2023-11-01' existing = {
+resource ip 'Microsoft.Network/publicIPAddresses@2023-11-01' = {
   name: 'aciNatGw-ip-${uniqueString(resourceGroup().name)}'
-  // location: region
-  // sku: {
-  //   name: 'Standard'
-  //   tier: 'Regional'
-  // }
-  // properties: {
-  //   ipTags: [
-  //     {
-  //       ipTagType: 'FirstPartyUsage'
-  //       tag: '/DelegatedNetworkControllerTest'
-  //     }
-  //   ]
-  //   publicIPAddressVersion: 'IPv4'
-  //   publicIPAllocationMethod: 'Static'
-  // }
+  location: region
+  sku: {
+    name: 'Standard'
+    tier: 'Regional'
+  }
+  properties: {
+    ipTags: [
+      {
+        ipTagType: 'FirstPartyUsage'
+        tag: '/DelegatedNetworkControllerTest'
+      }
+    ]
+    publicIPAddressVersion: 'IPv4'
+    publicIPAllocationMethod: 'Static'
+  }
 }
 
-resource aciNatGw 'Microsoft.Network/natGateways@2024-05-01' existing = {
+resource aciNatGw 'Microsoft.Network/natGateways@2024-05-01' = {
   name: 'aciNatGw-${uniqueString(resourceGroup().name)}'
-  // location: region
-  // sku: {
-  //   name: 'Standard'
-  // }
-  // properties: {
-  //   publicIpAddresses:[ {
-  //     id: ip.id
-  //   }]
-  // }
+  location: region
+  sku: {
+    name: 'Standard'
+  }
+  properties: {
+    publicIpAddresses:[ {
+      id: ip.id
+    }]
+  }
 }
 
-resource outboundIp 'Microsoft.Network/publicIPAddresses@2023-11-01' existing = {
+resource outboundIp 'Microsoft.Network/publicIPAddresses@2023-11-01' = {
   name: 'serviceTaggedIp-${clusterName}'
-  // location: region
-  // sku: {
-  //   name: 'Standard'
-  //   tier: 'Regional'
-  // }
-  // properties: {
-  //   ipTags: [
-  //     {
-  //       ipTagType: 'FirstPartyUsage'
-  //       tag: '/DelegatedNetworkControllerTest'
-  //     }
-  //   ]
-  //   publicIPAddressVersion: 'IPv4'
-  //   publicIPAllocationMethod: 'Static'
-  // }
+  location: region
+  sku: {
+    name: 'Standard'
+    tier: 'Regional'
+  }
+  properties: {
+    ipTags: [
+      {
+        ipTagType: 'FirstPartyUsage'
+        tag: '/DelegatedNetworkControllerTest'
+      }
+    ]
+    publicIPAddressVersion: 'IPv4'
+    publicIPAllocationMethod: 'Static'
+  }
 }
 
-resource infraVnet 'Microsoft.Network/virtualNetworks@2024-05-01' existing = {
+resource infraVnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   name: infraVnetName
-  // location: region
-  // properties: {
-  //   addressSpace: {
-  //     addressPrefixes: [
-  //       '10.224.0.0/12'
-  //     ]
-  //   }
-  //   subnets: [
-  //     {
-  //       name: 'infraSubnet'
-  //       properties: {
-  //         addressPrefix: '10.224.0.0/16'
-  //       }
-  //     }
-  //     {
-  //       name: 'pe-subnet'
-  //       properties:{
-  //         addressPrefix: '10.225.0.0/24'
-  //       }
-  //     }
-  //     {
-  //       name: aciSubnetName
-  //       properties:{
-  //         addressPrefix: '10.225.1.0/24'
-  //         natGateway: {
-  //           id: aciNatGw.id
-  //         }
-  //         delegations: [
-  //           {
-  //             name: 'aci'
-  //             properties: {
-  //               serviceName: 'Microsoft.ContainerInstance/containerGroups'
-  //             }
-  //           }
-  //         ]
-  //       }
-  //     }
-  //   ]
-  // }
+  location: region
+  properties: {
+    addressSpace: {
+      addressPrefixes: [
+        '10.224.0.0/12'
+      ]
+    }
+    subnets: [
+      {
+        name: 'infraSubnet'
+        properties: {
+          addressPrefix: '10.224.0.0/16'
+        }
+      }
+      {
+        name: 'pe-subnet'
+        properties:{
+          addressPrefix: '10.225.0.0/24'
+        }
+      }
+      {
+        name: aciSubnetName
+        properties:{
+          addressPrefix: '10.225.1.0/24'
+          natGateway: {
+            id: aciNatGw.id
+          }
+          delegations: [
+            {
+              name: 'aci'
+              properties: {
+                serviceName: 'Microsoft.ContainerInstance/containerGroups'
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
 }
 
-resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' existing ={
+resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' ={
   name: 'pe-subnetdelegator-${uniqueString(subnetDelegatorName)}'
-  // location: region
-  // properties: {
-  //   privateLinkServiceConnections: [
-  //     {
-  //       name: 'pe-subnetdelegator-${uniqueString(subnetDelegatorName)}-connection'
-  //       properties: {
-  //         privateLinkServiceId: subnetDelegatorAcaEnv.id
-  //         groupIds: [
-  //           'managedEnvironments'
-  //         ]
-  //       }
-  //     }
-  //   ]
-  //   subnet: {
-  //     id: infraVnet.properties.subnets[1].id
-  //   }
-  // }
+  location: region
+  properties: {
+    privateLinkServiceConnections: [
+      {
+        name: 'pe-subnetdelegator-${uniqueString(subnetDelegatorName)}-connection'
+        properties: {
+          privateLinkServiceId: subnetDelegatorAcaEnv.id
+          groupIds: [
+            'managedEnvironments'
+          ]
+        }
+      }
+    ]
+    subnet: {
+      id: infraVnet.properties.subnets[1].id
+    }
+  }
 }
 
 
@@ -242,116 +250,125 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2021-08-01' = {
   }
 }
 
-resource cluster 'Microsoft.ContainerService/managedClusters@2024-02-01' existing = {
+resource cluster 'Microsoft.ContainerService/managedClusters@2024-02-01' = {
   name: clusterName
-  // location: region
-  // identity: {
-  //   type: 'UserAssigned'
-  //   userAssignedIdentities: {
-  //     //'/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/standalone-nightly-pipeline/providers/Microsoft.ManagedIdentity/userAssignedIdentities/standalone-sub-contributor': {}
-  //     // aksClusterKubeletIdentity: {}
-  //     '/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/dala-aks-runner8/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aksClusterKubeletIdentity': {}
-  //   }
-  // }
-  // properties: {
+  location: region
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      //'/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/standalone-nightly-pipeline/providers/Microsoft.ManagedIdentity/userAssignedIdentities/standalone-sub-contributor': {}
+      // '/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/dala-aks-runner8/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aksClusterKubeletIdentity': {}
+      '${aksClusterKubeletIdentity.id}': {}
+    }
+  }
+  properties: {
     
 
-  //   aadProfile: {
-  //     managed: true
-  //     enableAzureRBAC: true
-  //   }
+    aadProfile: {
+      managed: true
+      enableAzureRBAC: true
+    }
 
-  //   agentPoolProfiles: [
-  //     {
-  //       count: 1
-  //       enableAutoScaling: false
-  //       enableEncryptionAtHost: false
-  //       enableNodePublicIP: false
-  //       mode: 'System'
-  //       name: 'dncpool0'
-  //       osType: 'Linux'
-  //       type: 'VirtualMachineScaleSets'
-  //       vmSize: 'Standard_D2_v2'
-  //       vnetSubnetID: infraVnet.properties.subnets[0].id
-  //     }
-  //     {
-  //       count: 1
-  //       enableAutoScaling: false
-  //       enableEncryptionAtHost: false
-  //       enableNodePublicIP: false
-  //       mode: 'User'
-  //       name: 'linuxpool0'
-  //       nodeLabels: {
-  //         nchost: 'true'
-  //       }
-  //       osType: 'Linux'
-  //       type: 'VirtualMachineScaleSets'
-  //       vmSize: 'Standard_D2_v2'
-  //       vnetSubnetID: infraVnet.properties.subnets[0].id
-  //     }
-  //   ]
-  //   dnsPrefix: clusterName
-  //   identityProfile: {
-  //     kubeletidentity: {
-  //       // resourceId: '/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/standalone-nightly-pipeline/providers/Microsoft.ManagedIdentity/userAssignedIdentities/standalone-sub-contributor'
-  //       resourceId: '/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/dala-aks-runner8/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aksClusterKubeletIdentity'
-  //       clientId: '8134a3dc-ad2c-486b-adeb-a4ff75cb55c5'
-  //       objectId: '71c8ae14-0aa4-4962-a1ef-46aff516a9ee'
-  //     }
-  //   }
-  //   networkProfile: {
-  //     loadBalancerProfile: {
-  //       outboundIPs: {
-  //         publicIPs: [
-  //           {
-  //             id: outboundIp.id
-  //           }
-  //         ]
-  //       }
-  //     }
+    agentPoolProfiles: [
+      {
+        count: 1
+        enableAutoScaling: false
+        enableEncryptionAtHost: false
+        enableNodePublicIP: false
+        mode: 'System'
+        name: 'dncpool0'
+        osType: 'Linux'
+        type: 'VirtualMachineScaleSets'
+        vmSize: 'Standard_D2_v2'
+        vnetSubnetID: infraVnet.properties.subnets[0].id
+      }
+      {
+        count: 1
+        enableAutoScaling: false
+        enableEncryptionAtHost: false
+        enableNodePublicIP: false
+        mode: 'User'
+        name: 'linuxpool0'
+        nodeLabels: {
+          nchost: 'true'
+        }
+        osType: 'Linux'
+        type: 'VirtualMachineScaleSets'
+        vmSize: 'Standard_D2_v2'
+        vnetSubnetID: infraVnet.properties.subnets[0].id
+      }
+    ]
+    dnsPrefix: clusterName
+    identityProfile: {
+      kubeletidentity: {
+        // resourceId: '/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/standalone-nightly-pipeline/providers/Microsoft.ManagedIdentity/userAssignedIdentities/standalone-sub-contributor'
+        // resourceId: '/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/dala-aks-runner8/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aksClusterKubeletIdentity'
+        resourceId: aksClusterKubeletIdentity.id
+        clientId: '8134a3dc-ad2c-486b-adeb-a4ff75cb55c5'
+        objectId: '71c8ae14-0aa4-4962-a1ef-46aff516a9ee'
+      }
+    }
+    networkProfile: {
+      loadBalancerProfile: {
+        outboundIPs: {
+          publicIPs: [
+            {
+              id: outboundIp.id
+            }
+          ]
+        }
+      }
 
-  //     networkMode: 'transparent'
-  //     networkPlugin: 'azure'
-  //   }
-  // }
+      networkMode: 'transparent'
+      networkPlugin: 'azure'
+    }
+  }
 }
 
 
 
-resource cosmosdb 'Microsoft.DocumentDB/databaseAccounts@2022-05-15' existing = {
+resource cosmosdb 'Microsoft.DocumentDB/databaseAccounts@2022-05-15' = {
   name: cosmosdbName
-  // location: region
-  // kind: 'GlobalDocumentDB'
-  // properties: {
-  //   enableMultipleWriteLocations: false
-  //   enableAutomaticFailover: false
-  //   databaseAccountOfferType: 'Standard'
-  //   disableLocalAuth: true
-  //   capabilities: [
-  //     {
-  //       name: 'EnableTable'
-  //     }
-  //   ]
-  //   consistencyPolicy: {
-  //     defaultConsistencyLevel: 'Session'
-  //     maxIntervalInSeconds: 5
-  //     maxStalenessPrefix: 100
-  //   }
-  //   locations: [
-  //     {
-  //       locationName: region
-  //       provisioningState: 'Succeeded'
-  //       failoverPriority: 0
-  //       isZoneRedundant: false
-  //     }
-  //   ]
-  // }
+  location: region
+  kind: 'GlobalDocumentDB'
+  properties: {
+    enableMultipleWriteLocations: false
+    enableAutomaticFailover: false
+    databaseAccountOfferType: 'Standard'
+    disableLocalAuth: true
+    capabilities: [
+      {
+        name: 'EnableTable'
+      }
+    ]
+    consistencyPolicy: {
+      defaultConsistencyLevel: 'Session'
+      maxIntervalInSeconds: 5
+      maxStalenessPrefix: 100
+    }
+    locations: [
+      {
+        locationName: region
+        provisioningState: 'Succeeded'
+        failoverPriority: 0
+        isZoneRedundant: false
+      }
+    ]
+  }
 }
 
 
-resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' existing = {
+resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
   name: 'helm-script-msi3'
-  // location: region
+  location: region
+}
+
+module roleAssignments1 './roleAssignmentsInSub.bicep' = {
+  name: 'roleAssignmentsDeployment1'
+  scope: subscription() // Explicitly set the module scope to subscription
+  params: {
+    principalId: userAssignedIdentity.properties.principalId
+  }
 }
 
 resource storageFileDataPrivilegedContributor 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
@@ -359,16 +376,16 @@ resource storageFileDataPrivilegedContributor 'Microsoft.Authorization/roleDefin
   scope: tenant()
 }
 
-resource dsStorage 'Microsoft.Storage/storageAccounts@2022-09-01' existing = {
+resource dsStorage 'Microsoft.Storage/storageAccounts@2022-09-01' = {
   name: 'dsstorage${uniqueString(resourceGroup().name)}'
-  // location: region
-  // kind: 'StorageV2'
-  // sku: {
-  //   name: 'Standard_LRS'
-  // }
-  // properties: {
-  //   allowBlobPublicAccess: false
-  // }
+  location: region
+  kind: 'StorageV2'
+  sku: {
+    name: 'Standard_LRS'
+  }
+  properties: {
+    allowBlobPublicAccess: false
+  }
 }
 
 resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -392,75 +409,62 @@ resource storageContributor 'Microsoft.Authorization/roleAssignments@2022-04-01'
   }
 }
 
-// resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' existing = {
-//   name: 'deploymentscript-msi-bdyaus4g6ycio'
-// }
+module testResourcesModule './testResources.bicep' = {
+  name: 'testResourcesDeployment'
+  params: {
+    region: region
+  }
+}
 
-// resource aksRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
-//   name: '3498e952-d568-435e-9b2c-8d77e338d7f1'
-//   scope: resourceGroup()
-//   properties: {
-//     principalId: userAssignedIdentity.properties.principalId
-//     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3498e952-d568-435e-9b2c-8d77e338d7f7')//Azure Kubernetes Service RBAC Admin
-//   }
-// }
-
-// resource containerRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
-//   name: 'f3bd1b5c-91fa-40e7-afe7-0c11d331232c'
-//   scope: resourceGroup()
-//   properties: {
-//     principalId: userAssignedIdentity.properties.principalId
-//     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f3bd1b5c-91fa-40e7-afe7-0c11d331232c')//Container App Operator
-//   }
-// }
-
+output fqdn1 string = testResourcesModule.outputs.fqdn1
+output fqdn2 string = testResourcesModule.outputs.fqdn2
 
 param randomGuid string = newGuid()
 
 // Subnet delegation script
-// resource ds 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
-//   #disable-next-line use-stable-resource-identifiers
-//   name: 'ds-subnetdelegator-${uniqueString(resourceGroup().name)}' 
-//   kind: 'AzureCLI'
-//   identity: {
-//     type: 'UserAssigned'
-//     userAssignedIdentities: {
-//       '${userAssignedIdentity.id}': {}
-//     }
-//   }
-//   dependsOn: [
-//     customerVnet
-//     roleAssignment
-//     storageContributor
-//   ]
-//   location: region
-//   properties: {
-//     storageAccountSettings: {storageAccountName: dsStorage.name}
-//     containerSettings: {
-//       subnetIds: [
-//         {
-//           id: infraVnet.properties.subnets[2].id
-//         }
-//       ]
-//     }
-//     azCliVersion: '2.69.0'
-//     forceUpdateTag: randomGuid
-//     retentionInterval: 'PT2H'
-//     cleanupPreference: 'OnExpiration'
-//     timeout: 'PT20M'
-//     scriptContent: concat(
-//       'curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/VirtualNetwork/%2Fsubscriptions%2F${subscriptionId}%2FresourceGroups%2F${rg}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${infraVnetName};',
-//       'resp=$(curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/DelegatedSubnet/%2Fsubscriptions%2F${subscriptionId}%2FresourceGroups%2F${rg}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${customerVnetName}%2Fsubnets%2F${delegatedSubnetName});',
-//       'token=$(echo "$resp" | grep -oP \'(?<=\\{).*?(?=\\})\' | sed -n \'s/.*"primaryToken":"\\([^"]*\\)".*/\\1/p\');',
-//       'echo "{\\"salToken\\":\\"$token\\"}" > $AZ_SCRIPTS_OUTPUT_PATH;',
-//       'cat $AZ_SCRIPTS_OUTPUT_PATH;'
-//     )
-//   }
-// }
+resource ds 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
+  #disable-next-line use-stable-resource-identifiers
+  name: 'ds-subnetdelegator-${uniqueString(resourceGroup().name)}' 
+  kind: 'AzureCLI'
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${userAssignedIdentity.id}': {}
+    }
+  }
+  dependsOn: [
+    customerVnet
+    roleAssignment
+    storageContributor
+  ]
+  location: region
+  properties: {
+    storageAccountSettings: {storageAccountName: dsStorage.name}
+    containerSettings: {
+      subnetIds: [
+        {
+          id: infraVnet.properties.subnets[2].id
+        }
+      ]
+    }
+    azCliVersion: '2.69.0'
+    forceUpdateTag: randomGuid
+    retentionInterval: 'PT2H'
+    cleanupPreference: 'OnExpiration'
+    timeout: 'PT20M'
+    scriptContent: concat(
+      'curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/VirtualNetwork/%2Fsubscriptions%2F${subscriptionId}%2FresourceGroups%2F${rg}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${infraVnetName};',
+      'resp=$(curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/DelegatedSubnet/%2Fsubscriptions%2F${subscriptionId}%2FresourceGroups%2F${rg}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${customerVnetName}%2Fsubnets%2F${delegatedSubnetName});',
+      'token=$(echo "$resp" | grep -oP \'(?<=\\{).*?(?=\\})\' | sed -n \'s/.*"primaryToken":"\\([^"]*\\)".*/\\1/p\');',
+      'echo "{\\"salToken\\":\\"$token\\"}" > $AZ_SCRIPTS_OUTPUT_PATH;',
+      'cat $AZ_SCRIPTS_OUTPUT_PATH;'
+    )
+  }
+}
 
 
-// // Outputs
-// output salToken string = ds.properties.outputs.salToken
+// Outputs
+output salToken string = ds.properties.outputs.salToken
 
 // Execute script
 resource helmScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
@@ -476,6 +480,7 @@ resource helmScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   location: region
   dependsOn: [
     cluster
+    testResourcesModule
     // aksRoleAssignment
     // containerRoleAssignment
   ]
@@ -484,10 +489,11 @@ resource helmScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
     forceUpdateTag: randomGuid
     retentionInterval: 'PT2H'
     cleanupPreference: 'OnExpiration'
-    timeout: 'PT20M'
+    timeout: 'PT1H10M'
+    // timeout: 'PT20M'
     // scriptContent: 'echo "abc..."'
     primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/joinVMSS.sh'
-    arguments: '-g ${rg} -c ${clusterName} -b linux.bicep -p 123aA! -u 9b8218f9-902a-4d20-a65c-e98acec5362f -v ${infraVnetName} -s ${subnetName}'
+    arguments: '-g ${rg} -c ${clusterName} -b linux.bicep -p 123aA! -u 9b8218f9-902a-4d20-a65c-e98acec5362f -v ${infraVnetName} -s ${subnetName} -t ${ds.properties.outputs.salToken} -V ${customerVnet.id}  -m ${aksClusterKubeletIdentity.id}'
     //primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/test.sh'
     //arguments: '-a ${ds.properties.outputs.salToken}'
     supportingScriptUris: [
@@ -518,45 +524,14 @@ resource helmScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_configmap_pubsubproxy.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/container1.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/container2.yaml'
+      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/roleAssignmentsInSub.bicep'
     ]
   }
   // tags: {
   //   'Az.Sec.DisableLocalAuth.Storage::Skip': 'Temporary bypass for deployment'
   // }
 }
-
-output instanceNames array = helmScript.properties.outputs.instanceNames
-
-resource testDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
-  name: 'test-${uniqueString(resourceGroup().name)}'
-  kind: 'AzureCLI'
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${userAssignedIdentity.id}': {}
-    }
-  }
-  location: region
-  dependsOn: [
-  
-    // cluster
-    // aksRoleAssignment
-    // containerRoleAssignment
-  ]
-  properties: {
-    azCliVersion: '2.60.0'
-    forceUpdateTag: randomGuid
-    retentionInterval: 'PT2H'
-    cleanupPreference: 'OnExpiration'
-    timeout: 'PT20M'
-    scriptContent: '''
-      #!/bin/bash
-      echo "Instance Names: $1"
-    '''
-    arguments: '${helmScript.properties.outputs.instanceNames}'
-  }
-}
-
+output privateIPs array = helmScript.properties.outputs.privateIPs
 
 // // Cleanup script
 // resource dsGc 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
@@ -586,3 +561,41 @@ resource testDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01'
 //     )
 //   }
 // }
+
+
+// output instanceNames array = helmScript.properties.outputs.instanceNames
+
+resource testDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+  name: 'test-${uniqueString(resourceGroup().name)}'
+  kind: 'AzureCLI'
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${userAssignedIdentity.id}': {}
+    }
+  }
+  location: region
+  dependsOn: [
+  
+    // cluster
+    // aksRoleAssignment
+    // containerRoleAssignment
+  ]
+  properties: {
+    azCliVersion: '2.60.0'
+    forceUpdateTag: randomGuid
+    retentionInterval: 'PT2H'
+    cleanupPreference: 'OnExpiration'
+    timeout: 'PT20M'
+    scriptContent: '''
+      #!/bin/bash
+      echo "FQDN1: $1"
+      echo "FQDN2: $2"
+      echo "Private IPs: $3"
+    '''
+    arguments: ' ${testResourcesModule.outputs.fqdn1} ${testResourcesModule.outputs.fqdn2} ${helmScript.properties.outputs.privateIPs}'
+  }
+}
+
+
+
