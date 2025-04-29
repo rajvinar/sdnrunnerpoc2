@@ -273,6 +273,8 @@ DNC_NODES=("dncpool17000000") # TODO : make it come from inputs
 echo "Labeling dnc node..."
 kubectl label node ${DNC_NODES[0]} node-type=dnc
 
+export RESOURCE_GROUP=$RESOURCE_GROUP
+envsubst < dnc_configmap.yaml > temp.yaml && mv temp.yaml dnc_configmap.yaml
 echo "Deploying dnc_configmap.yaml to namespace default..."
 kubectl apply -f dnc_configmap.yaml -n default
 
@@ -280,7 +282,6 @@ kubectl apply -f dnc_configmap.yaml -n default
 echo "Assigning Managed Identity to dnc node..."
 for VMSS in "${DNC_VMSSES[@]}"; do
     az vmss identity assign --name $VMSS --resource-group $RESOURCE_GROUP --identities $AKS_KUBERNETES_SERVICE_MANAGED_IDENTITY_CLIENT_ID
-    wait
 done
 
 echo "Deploying dnc_deployment.yaml to namespace default..."
@@ -815,7 +816,7 @@ PODS=(
 NAMESPACE="default"  # Replace with the namespace of the DNC deployment
 POD_HEALTH_CHECK_RETRY_COUNT=10  # Number of retry attempts
 POD_HEALTH_CHECK_RETRY_DELAY=5  # Delay between retries in seconds
-export RESOURCE_GROUP=$RESOURCE_GROUP
+
 
 # Function to deploy a pod
 deploy_pod() {

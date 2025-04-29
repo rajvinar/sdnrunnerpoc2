@@ -8,7 +8,7 @@ data:
       "DataStoreSettings": {
         "AzureStorageInfo": {
           "UseAzTablesSDK": true,
-          "AccountName": "daladb8",
+          "AccountName": "daladb",
           "Key": "",
           "PartitionKey": "standalone-c8c4d06b-3c3d-4a4f-8ed3-48d3e6b85a89",
           "Environment": "",
@@ -113,7 +113,7 @@ data:
         "EnableAccelNetworking": true
       },
       "IdentitySettings": {
-        "MSIResourceID": "/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/dala-aks-runner8/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aksClusterKubeletIdentity"
+        "MSIResourceID": "/subscriptions/9b8218f9-902a-4d20-a65c-e98acec5362f/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/aksClusterKubeletIdentity"
       },
       "AzureEnvironment": {
         "EnvironmentName": ""
