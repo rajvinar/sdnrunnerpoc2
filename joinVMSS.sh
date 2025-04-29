@@ -99,7 +99,7 @@ fi
 # fi
 # if [[ -z "${NODES_INPUT:-}" ]]; then
 #     missing_params+=("-n <nodes>")
-fi
+# fi
 if [[ -z "${AKS_KUBERNETES_SERVICE_MANAGED_IDENTITY_CLIENT_ID:-}" ]]; then
     missing_params+=("-m <managed-identity-client-id>")
 fi
