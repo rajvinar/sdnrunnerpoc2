@@ -18,7 +18,7 @@ usage() {
 }
 
 # Parse command-line arguments
-while getopts "g:c:b:p:v:s:u:t:" opt; do
+while getopts "g:c:b:p:v:s:u:t:V:m:" opt; do
     case "$opt" in
         g) RESOURCE_GROUP="$OPTARG" ;;
         c) CLUSTER_NAME="$OPTARG" ;;
