@@ -44,6 +44,61 @@ apk add --no-cache util-linux
 apk add --no-cache gettext
 
 
+
+
+# Create Worker node pool(s)
+echo "Creating Worker node pool(s)..."
+WORKER_VMSSES=("linuxpool190") # TODO : make it come from inputs
+INSTANCE_NAMES=()
+# Loop through VMSS names and create VMSS
+for VMSS_NAME in "${WORKER_VMSSES[@]}"; do
+    EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
+    echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
+    az deployment group create \
+        --name "vmss-deployment-${VMSS_NAME}" \
+        --resource-group "$RESOURCE_GROUP" \
+        --template-file "$BICEP_TEMPLATE_PATH" \
+        --parameters vnetname="$INFRA_VNET_NAME" \
+                     subnetname="$INFRA_SUBNET_NAME" \
+                     name="$VMSS_NAME" \
+                     adminPassword="$ADMIN_PASSWORD" \
+                     vnetrgname="$RESOURCE_GROUP" \
+                     vmsssku="Standard_E8s_v3" \
+                     location="westus" \
+                     extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
+    wait
+
+    INSTANCE_IDS=$(az vmss list-instances --resource-group "$RESOURCE_GROUP" --name "$VMSS_NAME" --query "[].instanceId" -o tsv)
+    for INSTANCE_ID in $INSTANCE_IDS; do
+        INSTANCE_NAME=$(az vmss get-instance-view --resource-group "$RESOURCE_GROUP" --name "$VMSS_NAME" --instance-id "$INSTANCE_ID" --query "osProfile.computerName" -o tsv)
+        INSTANCE_NAMES+=("$INSTANCE_NAME")
+    done
+done
+
+sleep 240
+
+# Label the worker nodes and deploy the cns ConfigMap and DaemonSet
+echo "Labeling worker nodes..."
+WORKER_NODES=("linuxpool190000000") # TODO : make it come from inpu
+# Label key and value
+LABEL_KEY="kubernetes.azure.com/mode"
+LABEL_VALUE="user"
+# Loop through each node and apply the label
+for NODE in "${WORKER_NODES[@]}"; do
+  kubectl label node "$NODE" "$LABEL_KEY=$LABEL_VALUE" --overwrite
+  kubectl label node "$NODE" node-type=cnscni --overwrite
+  echo "Successfully labeled node: $NODE"
+done
+
+# Assign MI to worker nodes to access runner worker image
+echo "Assigning Managed Identity to worker nodes..."
+for VMSS in "${WORKER_VMSSES[@]}"; do
+    az vmss identity assign --name $VMSS --resource-group $RESOURCE_GROUP --identities $AKS_KUBERNETES_SERVICE_MANAGED_IDENTITY_CLIENT_ID
+    wait
+done
+
+
+
 DNC_POD=$(kubectl get pods -n default -l app=dnc -o jsonpath='{.items[0].metadata.name}')
 echo "DNC Pod Name: $DNC_POD"
 # DNC_POD=$DNC_POD_NAME
@@ -73,9 +128,9 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 
 
 
+
 NODES=(
-  #"linuxpool180000000"
-  "linuxpool181000000"
+  "linuxpool190000000"
 )
 # Initialize an empty array to store the formatted NODES
 FORMATTED_NODES=()
@@ -91,6 +146,63 @@ done
 
 # Update the NODES array with the formatted values
 NODES=("${FORMATTED_NODES[@]}")
+
+
+DNC_ENDPOINT=$DNC_URL  # Replace with the actual DNC endpoint
+JSON_CONTENT_TYPE="application/json"
+
+# Function to register a node
+register_node() {
+  local NODE_ID=$1
+  local NODE_IP=$2
+
+  echo "Registering node: $NODE_ID with IP: $NODE_IP"
+
+  # Node information payload
+  NODE_INFO_JSON=$(cat <<EOF
+{
+  "IPAddresses": ["$NODE_IP"],
+  "OrchestratorType": "Kubernetes",
+  "InfrastructureNetwork": "52ebbf7f-eb3b-4eea-8ef6-51fe3e2d8bcd",
+  "AZID": "",
+  "NodeType": "",
+  "NodeSet": "",
+  "NumCores": 8,
+  "DualstackEnabled": false
+}
+EOF
+  )
+
+  # Send HTTP POST request to add the node
+  response=$(curl -s -w "%{http_code}" -o /tmp/add_node_response_$NODE_ID.json -X POST "$DNC_ENDPOINT/nodes/$NODE_ID?api-version=2018-03-01" \
+    -H "Content-Type: $JSON_CONTENT_TYPE" \
+    -d "$NODE_INFO_JSON")
+
+  # Extract HTTP status code
+  http_status=$(tail -n1 <<< "$response")
+
+  # Check if the request was successful
+  if [[ "$http_status" -ne 200 ]]; then
+    echo "Failed to add node $NODE_ID. HTTP status: $http_status"
+    cat /tmp/add_node_response_$NODE_ID.json
+    return 1
+  fi
+
+  echo "Node $NODE_ID added successfully!"
+  cat /tmp/add_node_response_$NODE_ID.json
+}
+
+# Iterate over the nodes and register each one
+for node in "${NODES[@]}"; do
+  IFS="|" read -r NODE_ID NODE_IP <<< "$node"
+  if ! register_node "$NODE_ID" "$NODE_IP"; then
+    echo "Error: Failed to register node $NODE_ID"
+    exit 1
+  fi
+done
+
+echo "All nodes registered successfully!"
+
 
 CUSTOMER_VNET_GUID="b4d2d13d-ee06-4eff-ba82-95d182f40a71"
 DNC_API_ENDPOINT=$DNC_URL  # Replace with the actual DNC endpoint
@@ -128,7 +240,10 @@ for i in "${!NODES[@]}"; do
   POD_NAME="${POD_NAMES[i]}"
   NC_NODES+=("$NODE|$POD_NAME")
 done
-CUSTOMER_SUBNET_NAMES=("delegatedSubnet" "delegatedSubnet1")
+CUSTOMER_SUBNET_NAMES=(
+  "delegatedSubnet"
+  # "delegatedSubnet1"
+)
 
 # Function to create a network container (NC)
 create_nc() {
