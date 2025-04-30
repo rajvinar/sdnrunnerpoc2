@@ -1221,7 +1221,7 @@ apk add --no-cache gettext
 
 # Create Worker node pool(s)
 echo "Creating Worker node pool(s)..."
-WORKER_VMSSES=("linuxpool190") # TODO : make it come from inputs
+WORKER_VMSSES=("linuxpool191") # TODO : make it come from inputs
 INSTANCE_NAMES=()
 # Loop through VMSS names and create VMSS
 for VMSS_NAME in "${WORKER_VMSSES[@]}"; do
@@ -1252,7 +1252,7 @@ sleep 240
 
 # Label the worker nodes and deploy the cns ConfigMap and DaemonSet
 echo "Labeling worker nodes..."
-WORKER_NODES=("linuxpool190000000") # TODO : make it come from inpu
+WORKER_NODES=("linuxpool191000000") # TODO : make it come from inpu
 # Label key and value
 LABEL_KEY="kubernetes.azure.com/mode"
 LABEL_VALUE="user"
@@ -1303,7 +1303,7 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 
 
 NODES=(
-  "linuxpool190000000"
+  "linuxpool191000000"
 )
 # Initialize an empty array to store the formatted NODES
 FORMATTED_NODES=()
