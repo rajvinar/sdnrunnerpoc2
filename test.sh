@@ -19,7 +19,7 @@
 # fi
 
 echo "auth to aks..."
-az aks get-credentials --resource-group dala-aks-runner8 --name aks --overwrite-existing  --admin || exit 1
+az aks get-credentials --resource-group dala-aks-runner20 --name aks --overwrite-existing  --admin || exit 1
 
 apk add --no-cache curl
 
@@ -43,18 +43,23 @@ fi
 apk add --no-cache util-linux
 apk add --no-cache gettext
 
+
+DNC_POD=$(kubectl get pods -n default -l app=dnc -o jsonpath='{.items[0].metadata.name}')
+echo "DNC Pod Name: $DNC_POD"
+# DNC_POD=$DNC_POD_NAME
 NAMESPACE="default"  # Replace with the namespace of the DNC deployment
 LABEL_SELECTOR="app=dnc"  # Replace with the label selector for the DNC pod
 LOCAL_PORT=9000  # Local port to forward
 REMOTE_PORT=9000  # Pod's port to forward
-DNC_POD="dnc-7f75b67795-cpc5b"
+
+# DNC_POD="dnc-7f75b67795-cpc5b" # TODO: make it from az command
 
 # Start port forwarding
 echo "Starting port forwarding from localhost:$LOCAL_PORT to $DNC_POD:$REMOTE_PORT..."
 kubectl port-forward -n "$NAMESPACE" pod/"$DNC_POD" "$LOCAL_PORT:$REMOTE_PORT" & PORT_FORWARD_PID=$!
 
 # Wait for port forwarding to establish
-sleep 10
+sleep 20
 
 # Check if the port forwarding process is running
 if ! kill -0 $PORT_FORWARD_PID 2>/dev/null; then
@@ -66,60 +71,311 @@ fi
 DNC_URL="http://localhost:$LOCAL_PORT"
 echo "Successfully port forwarded to DNC: $DNC_URL"
 
-##############################################################
-# Define an array of pods with their details
-PODS=(
-  "container1-pod|linuxpool180000000|container1.yaml|cx=vm1|container1-service"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR TODO: Make it come from inputs
-  "container2-pod|linuxpool181000000|container2.yaml|cx=vm2|container2-service"
+
+
+NODES=(
+  "linuxpool180000000"
+  "linuxpool181000000"
+)
+# Initialize an empty array to store the formatted NODES
+FORMATTED_NODES=()
+
+# Loop through each node in the NODES array
+for NODE in "${NODES[@]}"; do
+  # Get the internal IP of the node using kubectl
+  NODE_IP=$(kubectl get node "$NODE" -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
+  
+  # Append the formatted NODE_ID|NODE_IP to the FORMATTED_NODES array
+  FORMATTED_NODES+=("$NODE|$NODE_IP")
+done
+
+# Update the NODES array with the formatted values
+NODES=("${FORMATTED_NODES[@]}")
+
+CUSTOMER_VNET_GUID="b4d2d13d-ee06-4eff-ba82-95d182f40a71"
+DNC_API_ENDPOINT=$DNC_URL  # Replace with the actual DNC endpoint
+POD_NAMESPACE="default"  # Replace with the pod namespace
+RETRY_COUNT=20  # Number of retry attempts
+RETRY_DELAY=3  # Delay between retries in seconds
+IP_CONSTRAINT=""
+NODE_CONSTRAINT=""
+SECONDARY_IP_COUNT=0
+PRIMARY_IP_PREFIX_BITS=0
+CONTAINER_TYPE="AzureContainerInstance"
+OWNER_ID=""
+RESERVATION_ID=""
+RESERVATION_SET_ID=""
+HOST_TO_NC=false
+NC_TO_HOST=false
+nc_id=""
+
+# NC_NODES=(
+#   "linuxpool160000000|10.224.0.76|container1-pod"  # Format: NODE_NAME|NODE_IP|POD_NAME TODO: Make it come from inputs
+#   "linuxpool161000000|10.224.0.78|container2-pod"
+# )
+# CUSTOMER_VNET_GUID="3f84330f-6410-4996-bb28-78513d2eb093"  # TODO: make it come from inputs
+# Define an array of POD_NAMES corresponding to the nodes
+POD_NAMES=(
+  "container1-pod"
+  "container2-pod"
 )
 
-NAMESPACE="default"  # Replace with the namespace of the DNC deployment
-POD_HEALTH_CHECK_RETRY_COUNT=10  # Number of retry attempts
-POD_HEALTH_CHECK_RETRY_DELAY=5  # Delay between retries in seconds
-export RESOURCE_GROUP="dala-aks-runner8"
+# Initialize an empty array to store the updated NODES
+NC_NODES=()
+# Loop through the NODES array and append the corresponding POD_NAME
+for i in "${!NODES[@]}"; do
+  NODE="${NODES[i]}"
+  POD_NAME="${POD_NAMES[i]}"
+  NC_NODES+=("$NODE|$POD_NAME")
+done
+CUSTOMER_SUBNET_NAMES=("delegatedSubnet" "delegatedSubnet1")
 
-# Function to deploy a pod
-deploy_pod() {
-  local POD_NAME=$1
-  local NODE_NAME=$2
-  local POD_YAML=$3
-  local LABEL_SELECTOR=$4
+# Function to create a network container (NC)
+create_nc() {
+  local NODE_NAME=$1
+  local NODE_IP=$2
+  local POD_NAME=$3
+  local CUSTOMER_SUBNET_NAME=$4
+  local NC_ID=$(uuidgen)  # Generate a unique NC ID
+  nc_id="$NC_ID"
+  echo "Attempting to create NC: $NC_ID on node: $NODE_NAME with pod: $POD_NAME"
 
-  echo "Deploying pod: $POD_NAME on node: $NODE_NAME with YAML: $POD_YAML"
+  # Construct the NC request payload
+  if [[ -z "$RESERVATION_ID" && -z "$RESERVATION_SET_ID" ]]; then
+    # V2 request
+    nc_request=$(cat <<EOF
+{
+  "AllocationRequest": {
+    "SubnetName": "$CUSTOMER_SUBNET_NAME",
+    "IPConstraint": "$IP_CONSTRAINT",
+    "NodeConstraint": "$NODE_CONSTRAINT",
+    "SecondaryIPCount": $SECONDARY_IP_COUNT,
+    "PrimaryIPPrefixBits": $PRIMARY_IP_PREFIX_BITS
+  },
+  "AssociationInfo": {
+    "NodeID": "$NODE_NAME",
+    "InterfaceID": "$NODE_IP",
+    "ContainerType": "$CONTAINER_TYPE",
+    "OrchestratorContext": {
+      "PodName": "$POD_NAME",
+      "PodNamespace": "$POD_NAMESPACE"
+    }
+  },
+  "AllowHostToNCCommunication": $HOST_TO_NC,
+  "AllowNCToHostCommunication": $NC_TO_HOST,
+  "OwnerID": "$OWNER_ID"
+}
+EOF
+    )
+  else
+    # V1 request
+    nc_request=$(cat <<EOF
+{
+  "ReservationID": "$RESERVATION_ID",
+  "ReservationSetID": "$RESERVATION_SET_ID",
+  "AssociationInfo": {
+    "NodeID": "$NODE_NAME",
+    "InterfaceID": "$NODE_IP",
+    "ContainerType": "$CONTAINER_TYPE",
+    "OrchestratorContext": {
+      "PodName": "$POD_NAME",
+      "PodNamespace": "$POD_NAMESPACE"
+    }
+  },
+  "AllowHostToNCCommunication": $HOST_TO_NC,
+  "AllowNCToHostCommunication": $NC_TO_HOST,
+  "OwnerID": "$OWNER_ID"
+}
+EOF
+    )
+  fi
 
-  # Label the node
-  kubectl label node "$NODE_NAME" "$LABEL_SELECTOR" --overwrite
+  echo "NC request payload: $nc_request"
 
-  envsubst < "$POD_YAML" > temp.yaml && mv temp.yaml "$POD_YAML"
+  # Send the POST request to create the NC
+  response=$(curl -s -w "%{http_code}" -o /tmp/create_nc_response_$NC_ID.json -X POST "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/networkcontainer/$NC_ID?api-version=2018-03-01" \
+    -H "Content-Type: application/json" \
+    -d "$nc_request")
 
-  # Apply the pod YAML
-  kubectl apply -f "$POD_YAML" -n "$NAMESPACE"
+  # Extract HTTP status code
+  http_status=$(tail -n1 <<< "$response")
 
-  echo "Pod $POD_NAME deployed"
+  # Check if the request was successful or if there was a conflict
+  if [[ "$http_status" -ne 200 && "$http_status" -ne 409 ]]; then
+    echo "Failed to create NC $NC_ID. HTTP status: $http_status"
+    cat /tmp/create_nc_response_$NC_ID.json
+    return 1
+  fi
+
+  echo "Successfully created NC: $NC_ID"
+  cat /tmp/create_nc_response_$NC_ID.json
 }
 
-# Main script logic
-echo "Starting orchestration..."
+# Function to poll the NC status
+poll_nc_status() {
+  local NC_ID=$1
 
-# Iterate over the pods and deploy each one
-for pod in "${PODS[@]}"; do
-  IFS="|" read -r POD_NAME NODE_NAME POD_YAML LABEL_SELECTOR SERVICE_NAME <<< "$pod"
+  echo "Polling status of NC: $NC_ID"
 
-  # Deploy the pod
-  deploy_pod "$POD_NAME" "$NODE_NAME" "$POD_YAML" "$LABEL_SELECTOR"
+  # Send the GET request to check the NC status
+  response=$(curl -s -w "%{http_code}" -o /tmp/nc_status_response_$NC_ID.json -X GET "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/networkcontainer/$NC_ID/status?api-version=2018-03-01" \
+    -H "Content-Type: application/json")
 
-  # Get the private IP of the pod
-  PRIVATE_IP=$(kubectl get pod "$POD_NAME" -n "$NAMESPACE" -o jsonpath='{.status.podIP}')
-  echo "Private IP of Pod $POD_NAME: $PRIVATE_IP"
+  # Extract HTTP status code
+  http_status=$(tail -n1 <<< "$response")
 
-  # Get the public IP and FQDN of the service
-  PUBLIC_IP=$(kubectl get service "$SERVICE_NAME" -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-  PUBLIC_FQDN=$(kubectl get service "$SERVICE_NAME" -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+  # Check if the request was successful
+  if [[ "$http_status" -ne 200 ]]; then
+    echo "Failed to get status for NC $NC_ID. HTTP status: $http_status"
+    cat /tmp/nc_status_response_$NC_ID.json
+    return 1
+  fi
 
-  echo "Public IP of Service $SERVICE_NAME: $PUBLIC_IP"
-  echo "Public FQDN of Service $SERVICE_NAME: $PUBLIC_FQDN"
+  # Parse the status from the response
+  nc_status=$(jq -r '.Status' /tmp/nc_status_response_$NC_ID.json)
+  if [[ "$nc_status" != "Completed" ]]; then
+    echo "NC $NC_ID status is not 'Completed'. Current status: $nc_status"
+    return 1
+  fi
 
+  echo "NC $NC_ID status is 'Completed'."
+}
+
+# Iterate over the nodes and register NCs for each
+for index in "${!NC_NODES[@]}"; do
+  IFS="|" read -r NODE_NAME NODE_IP POD_NAME <<< "${NC_NODES[index]}"
+  CUSTOMER_SUBNET_NAME="${CUSTOMER_SUBNET_NAMES[index]}"
+
+  # Retry logic for creating the NC
+  attempt=1
+  while [[ $attempt -le $RETRY_COUNT ]]; do
+    if create_nc "$NODE_NAME" "$NODE_IP" "$POD_NAME" "$CUSTOMER_SUBNET_NAME"; then
+      echo "Create NC succeeded on attempt $attempt for node: $NODE_NAME."
+      break
+    fi
+
+    echo "Create NC failed on attempt $attempt for node: $NODE_NAME. Retrying in $RETRY_DELAY seconds..."
+    sleep "$RETRY_DELAY"
+    attempt=$((attempt + 1))
+  done
+
+  if [[ $attempt -gt $RETRY_COUNT ]]; then
+    echo "Failed to create NC for node: $NODE_NAME after $RETRY_COUNT attempts."
+    exit 1
+  fi
+
+  # Retry logic for polling the NC status
+  attempt=1
+  while [[ $attempt -le $RETRY_COUNT ]]; do
+    if poll_nc_status "$nc_id"; then
+      echo "NC status check succeeded on attempt $attempt for node: $NODE_NAME."
+      break
+    fi
+
+    echo "NC status check failed on attempt $attempt for node: $NODE_NAME. Retrying in $RETRY_DELAY seconds..."
+    sleep "$RETRY_DELAY"
+    attempt=$((attempt + 1))
+  done
+
+  if [[ $attempt -gt $RETRY_COUNT ]]; then
+    echo "Failed to verify NC status for node: $NODE_NAME after $RETRY_COUNT attempts."
+    exit 1
+  fi
 done
+
+echo "All NCs registered and verified successfully!"
+
+
+
+
+
+
+
+
+
+
+
+
+
+# NAMESPACE="default"  # Replace with the namespace of the DNC deployment
+# LABEL_SELECTOR="app=dnc"  # Replace with the label selector for the DNC pod
+# LOCAL_PORT=9000  # Local port to forward
+# REMOTE_PORT=9000  # Pod's port to forward
+# DNC_POD="dnc-7f75b67795-cpc5b"
+
+# # Start port forwarding
+# echo "Starting port forwarding from localhost:$LOCAL_PORT to $DNC_POD:$REMOTE_PORT..."
+# kubectl port-forward -n "$NAMESPACE" pod/"$DNC_POD" "$LOCAL_PORT:$REMOTE_PORT" & PORT_FORWARD_PID=$!
+
+# # Wait for port forwarding to establish
+# sleep 10
+
+# # Check if the port forwarding process is running
+# if ! kill -0 $PORT_FORWARD_PID 2>/dev/null; then
+#   echo "Error: Port forwarding failed to start"
+#   exit 1
+# fi
+
+# # Log the forwarded URL
+# DNC_URL="http://localhost:$LOCAL_PORT"
+# echo "Successfully port forwarded to DNC: $DNC_URL"
+
+# ##############################################################
+# # Define an array of pods with their details
+# PODS=(
+#   "container1-pod|linuxpool180000000|container1.yaml|cx=vm1|container1-service"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR TODO: Make it come from inputs
+#   "container2-pod|linuxpool181000000|container2.yaml|cx=vm2|container2-service"
+# )
+
+# NAMESPACE="default"  # Replace with the namespace of the DNC deployment
+# POD_HEALTH_CHECK_RETRY_COUNT=10  # Number of retry attempts
+# POD_HEALTH_CHECK_RETRY_DELAY=5  # Delay between retries in seconds
+# export RESOURCE_GROUP="dala-aks-runner8"
+
+# # Function to deploy a pod
+# deploy_pod() {
+#   local POD_NAME=$1
+#   local NODE_NAME=$2
+#   local POD_YAML=$3
+#   local LABEL_SELECTOR=$4
+
+#   echo "Deploying pod: $POD_NAME on node: $NODE_NAME with YAML: $POD_YAML"
+
+#   # Label the node
+#   kubectl label node "$NODE_NAME" "$LABEL_SELECTOR" --overwrite
+
+#   envsubst < "$POD_YAML" > temp.yaml && mv temp.yaml "$POD_YAML"
+
+#   # Apply the pod YAML
+#   kubectl apply -f "$POD_YAML" -n "$NAMESPACE"
+
+#   echo "Pod $POD_NAME deployed"
+# }
+
+# # Main script logic
+# echo "Starting orchestration..."
+
+# # Iterate over the pods and deploy each one
+# for pod in "${PODS[@]}"; do
+#   IFS="|" read -r POD_NAME NODE_NAME POD_YAML LABEL_SELECTOR SERVICE_NAME <<< "$pod"
+
+#   # Deploy the pod
+#   deploy_pod "$POD_NAME" "$NODE_NAME" "$POD_YAML" "$LABEL_SELECTOR"
+
+#   # Get the private IP of the pod
+#   PRIVATE_IP=$(kubectl get pod "$POD_NAME" -n "$NAMESPACE" -o jsonpath='{.status.podIP}')
+#   echo "Private IP of Pod $POD_NAME: $PRIVATE_IP"
+
+#   # Get the public IP and FQDN of the service
+#   PUBLIC_IP=$(kubectl get service "$SERVICE_NAME" -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+#   PUBLIC_FQDN=$(kubectl get service "$SERVICE_NAME" -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+#   echo "Public IP of Service $SERVICE_NAME: $PUBLIC_IP"
+#   echo "Public FQDN of Service $SERVICE_NAME: $PUBLIC_FQDN"
+
+# done
+######################################
+
 
 # echo "All pods deployed and verified successfully."
 
