@@ -407,7 +407,7 @@ attempt=1
 while [[ $attempt -le $RETRY_COUNT ]]; do
   if check_vnet_status; then
     echo "VNet status check succeeded on attempt $attempt."
-    exit 0
+    break
   fi
 
   echo "VNet status check failed on attempt $attempt. Retrying in $RETRY_DELAY seconds..."
@@ -415,8 +415,11 @@ while [[ $attempt -le $RETRY_COUNT ]]; do
   attempt=$((attempt + 1))
 done
 
-echo "Failed to verify VNet status after $RETRY_COUNT attempts."
-exit 1
+if [[ $attempt -gt $RETRY_COUNT ]]; then
+  echo "Failed to verify VNet status after $RETRY_COUNT attempts."
+  exit 1  # Exit with failure
+fi
+
 
 ############# Join subnet to DNC #############
 # Variables
