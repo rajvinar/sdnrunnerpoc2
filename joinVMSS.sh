@@ -773,7 +773,7 @@ for index in "${!NC_NODES[@]}"; do
   # Retry logic for creating the NC
   attempt=1
   while [[ $attempt -le $RETRY_COUNT ]]; do
-    if create_nc "$NODE_NAME" "$NODE_IP" "$POD_NAME"; then
+    if create_nc "$NODE_NAME" "$NODE_IP" "$POD_NAME" "$CUSTOMER_SUBNET_NAME"; then
       echo "Create NC succeeded on attempt $attempt for node: $NODE_NAME."
       break
     fi
