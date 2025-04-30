@@ -1217,32 +1217,6 @@ apk add --no-cache gettext
 # echo "Loop completed after 30 minutes."
 
 
-echo "auth to aks..."
-az aks get-credentials --resource-group dala-aks-runner20 --name aks --overwrite-existing  --admin || exit 1
-
-apk add --no-cache curl
-
-if ! command -v kubectl &> /dev/null; then
-    echo "kubectl not found! Installing..."
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-    wait
-    chmod +x kubectl
-    mv kubectl /usr/local/bin/
-    kubectl version --client
-fi
-
-
-if ! command -v helm &> /dev/null; then
-    echo "helm not found! Installing..."
-    apk add --no-cache helm
-    wait
-    helm version
-fi
-
-apk add --no-cache util-linux
-apk add --no-cache gettext
-
-
 
 
 # Create Worker node pool(s)
