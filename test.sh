@@ -74,7 +74,7 @@ echo "Successfully port forwarded to DNC: $DNC_URL"
 
 
 NODES=(
-  "linuxpool180000000"
+  #"linuxpool180000000"
   "linuxpool181000000"
 )
 # Initialize an empty array to store the formatted NODES
@@ -116,7 +116,7 @@ nc_id=""
 # CUSTOMER_VNET_GUID="3f84330f-6410-4996-bb28-78513d2eb093"  # TODO: make it come from inputs
 # Define an array of POD_NAMES corresponding to the nodes
 POD_NAMES=(
-  "container1-pod"
+  #"container1-pod"
   "container2-pod"
 )
 
