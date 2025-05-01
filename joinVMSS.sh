@@ -823,8 +823,8 @@ echo "All NCs registered and verified successfully!"
 ############################ Deploy Pods ###########################
 # Define an array of pods with their details
 PODS=(
-  "container2-pod|linuxpool180000000|container2.yaml|cx=vm2"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR TODO: Make it come from inputs
-  "container1-pod|linuxpool181000000|container1.yaml|cx=vm1"
+  "container1-pod|linuxpool180000000|container1.yaml|cx=vm1"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR TODO: Make it come from inputs
+  "container2-pod|linuxpool181000000|container2.yaml|cx=vm2"
 )
 
 NAMESPACE="default"  # Replace with the namespace of the DNC deployment
