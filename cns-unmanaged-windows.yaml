@@ -167,9 +167,9 @@ spec:
           path: /k/azurecni/bin
           type: DirectoryOrCreate
         name: cni-bin
-  updateStrategy:
-    rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 2%
-    type: RollingUpdate
+  # updateStrategy:
+  #   rollingUpdate:
+  #     maxSurge: 0
+  #     maxUnavailable: 2%
+  #   type: RollingUpdate
 {{- end }}
