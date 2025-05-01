@@ -191,7 +191,7 @@ sed "s|__OBJECT_ID__|$OID|g" ./bootstrap-role.yaml | kubectl apply -f -
 
 # Create DNC node pool(s)
 echo "Creating DNC node pool(s)..."
-DNC_VMSSES=("dncpool17") # TODO : make it come from inputs
+DNC_VMSSES=("dncpool20") # TODO : make it come from inputs
 # Loop through VMSS names and create VMSS
 for VMSS_NAME in "${DNC_VMSSES[@]}"; do
     EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
@@ -215,7 +215,7 @@ done
 
 # Create Worker node pool(s)
 echo "Creating Worker node pool(s)..."
-WORKER_VMSSES=("linuxpool180" "linuxpool181") # TODO : make it come from inputs
+WORKER_VMSSES=("linuxpool20" "linuxpool21") # TODO : make it come from inputs
 INSTANCE_NAMES=()
 # Loop through VMSS names and create VMSS
 for VMSS_NAME in "${WORKER_VMSSES[@]}"; do
@@ -246,7 +246,7 @@ sleep 240
 
 # Label the worker nodes and deploy the cns ConfigMap and DaemonSet
 echo "Labeling worker nodes..."
-WORKER_NODES=("linuxpool180000000" "linuxpool181000000") # TODO : make it come from inpu
+WORKER_NODES=("linuxpool120000000" "linuxpool21000000") # TODO : make it come from inpu
 # Label key and value
 LABEL_KEY="kubernetes.azure.com/mode"
 LABEL_VALUE="user"
@@ -551,8 +551,8 @@ done
 # )
 
 NODES=(
-  "linuxpool180000000"
-  "linuxpool181000000"
+  "linuxpool20000000"
+  "linuxpool21000000"
 )
 # Initialize an empty array to store the formatted NODES
 FORMATTED_NODES=()
@@ -823,8 +823,8 @@ echo "All NCs registered and verified successfully!"
 ############################ Deploy Pods ###########################
 # Define an array of pods with their details
 PODS=(
-  "container1-pod|linuxpool180000000|container1.yaml|cx=vm1"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR TODO: Make it come from inputs
-  "container2-pod|linuxpool181000000|container2.yaml|cx=vm2"
+  "container1-pod|linuxpool20000000|container1.yaml|cx=vm1"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR TODO: Make it come from inputs
+  "container2-pod|linuxpool21000000|container2.yaml|cx=vm2"
 )
 
 NAMESPACE="default"  # Replace with the namespace of the DNC deployment
