@@ -19,7 +19,7 @@
 # fi
 
 echo "auth to aks..."
-az aks get-credentials --resource-group dala-aks-runner20 --name aks --overwrite-existing  --admin || exit 1
+az aks get-credentials --resource-group dala-aks-runner23 --name aks --overwrite-existing  --admin || exit 1
 
 apk add --no-cache curl
 
@@ -40,65 +40,12 @@ if ! command -v helm &> /dev/null; then
     helm version
 fi
 
+apk add --no-cache jq
 apk add --no-cache util-linux
+apk add --no-cache jq
 apk add --no-cache gettext
 
-
-
-
-# Create Worker node pool(s)
-echo "Creating Worker node pool(s)..."
-WORKER_VMSSES=("linuxpool190") # TODO : make it come from inputs
-INSTANCE_NAMES=()
-# Loop through VMSS names and create VMSS
-for VMSS_NAME in "${WORKER_VMSSES[@]}"; do
-    EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
-    echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
-    az deployment group create \
-        --name "vmss-deployment-${VMSS_NAME}" \
-        --resource-group "$RESOURCE_GROUP" \
-        --template-file "$BICEP_TEMPLATE_PATH" \
-        --parameters vnetname="$INFRA_VNET_NAME" \
-                     subnetname="$INFRA_SUBNET_NAME" \
-                     name="$VMSS_NAME" \
-                     adminPassword="$ADMIN_PASSWORD" \
-                     vnetrgname="$RESOURCE_GROUP" \
-                     vmsssku="Standard_E8s_v3" \
-                     location="westus" \
-                     extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
-    wait
-
-    INSTANCE_IDS=$(az vmss list-instances --resource-group "$RESOURCE_GROUP" --name "$VMSS_NAME" --query "[].instanceId" -o tsv)
-    for INSTANCE_ID in $INSTANCE_IDS; do
-        INSTANCE_NAME=$(az vmss get-instance-view --resource-group "$RESOURCE_GROUP" --name "$VMSS_NAME" --instance-id "$INSTANCE_ID" --query "osProfile.computerName" -o tsv)
-        INSTANCE_NAMES+=("$INSTANCE_NAME")
-    done
-done
-
-sleep 240
-
-# Label the worker nodes and deploy the cns ConfigMap and DaemonSet
-echo "Labeling worker nodes..."
-WORKER_NODES=("linuxpool190000000") # TODO : make it come from inpu
-# Label key and value
-LABEL_KEY="kubernetes.azure.com/mode"
-LABEL_VALUE="user"
-# Loop through each node and apply the label
-for NODE in "${WORKER_NODES[@]}"; do
-  kubectl label node "$NODE" "$LABEL_KEY=$LABEL_VALUE" --overwrite
-  kubectl label node "$NODE" node-type=cnscni --overwrite
-  echo "Successfully labeled node: $NODE"
-done
-
-# Assign MI to worker nodes to access runner worker image
-echo "Assigning Managed Identity to worker nodes..."
-for VMSS in "${WORKER_VMSSES[@]}"; do
-    az vmss identity assign --name $VMSS --resource-group $RESOURCE_GROUP --identities $AKS_KUBERNETES_SERVICE_MANAGED_IDENTITY_CLIENT_ID
-    wait
-done
-
-
-
+########### Port Forwarding Setup ###########
 DNC_POD=$(kubectl get pods -n default -l app=dnc -o jsonpath='{.items[0].metadata.name}')
 echo "DNC Pod Name: $DNC_POD"
 # DNC_POD=$DNC_POD_NAME
@@ -126,279 +73,435 @@ fi
 DNC_URL="http://localhost:$LOCAL_PORT"
 echo "Successfully port forwarded to DNC: $DNC_URL"
 
+########### Port Forwarding Setup End ###########
 
 
-
-NODES=(
-  "linuxpool190000000"
+############################ Deploy Pods ###########################
+# Define an array of pods with their details
+PODS=(
+  "container2-pod|linuxpool180000000|container2.yaml|cx=vm2"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR TODO: Make it come from inputs
+  "container1-pod|linuxpool181000000|container1.yaml|cx=vm1"
 )
-# Initialize an empty array to store the formatted NODES
-FORMATTED_NODES=()
 
-# Loop through each node in the NODES array
-for NODE in "${NODES[@]}"; do
-  # Get the internal IP of the node using kubectl
-  NODE_IP=$(kubectl get node "$NODE" -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
-  
-  # Append the formatted NODE_ID|NODE_IP to the FORMATTED_NODES array
-  FORMATTED_NODES+=("$NODE|$NODE_IP")
-done
-
-# Update the NODES array with the formatted values
-NODES=("${FORMATTED_NODES[@]}")
+NAMESPACE="default"  # Replace with the namespace of the DNC deployment
+POD_HEALTH_CHECK_RETRY_COUNT=10  # Number of retry attempts
+POD_HEALTH_CHECK_RETRY_DELAY=5  # Delay between retries in seconds
 
 
-DNC_ENDPOINT=$DNC_URL  # Replace with the actual DNC endpoint
-JSON_CONTENT_TYPE="application/json"
+# Function to deploy a pod
+deploy_pod() {
+  local POD_NAME=$1
+  local NODE_NAME=$2
+  local POD_YAML=$3
+  local LABEL_SELECTOR=$4
 
-# Function to register a node
-register_node() {
-  local NODE_ID=$1
-  local NODE_IP=$2
+  echo "Deploying pod: $POD_NAME on node: $NODE_NAME with YAML: $POD_YAML"
 
-  echo "Registering node: $NODE_ID with IP: $NODE_IP"
+  # Label the node
+  kubectl label node "$NODE_NAME" "$LABEL_SELECTOR" --overwrite
 
-  # Node information payload
-  NODE_INFO_JSON=$(cat <<EOF
-{
-  "IPAddresses": ["$NODE_IP"],
-  "OrchestratorType": "Kubernetes",
-  "InfrastructureNetwork": "52ebbf7f-eb3b-4eea-8ef6-51fe3e2d8bcd",
-  "AZID": "",
-  "NodeType": "",
-  "NodeSet": "",
-  "NumCores": 8,
-  "DualstackEnabled": false
-}
-EOF
-  )
+  envsubst < "$POD_YAML" > temp.yaml && mv temp.yaml "$POD_YAML"
 
-  # Send HTTP POST request to add the node
-  response=$(curl -s -w "%{http_code}" -o /tmp/add_node_response_$NODE_ID.json -X POST "$DNC_ENDPOINT/nodes/$NODE_ID?api-version=2018-03-01" \
-    -H "Content-Type: $JSON_CONTENT_TYPE" \
-    -d "$NODE_INFO_JSON")
+  # Apply the pod YAML
+  kubectl apply -f "$POD_YAML" -n "$NAMESPACE"
 
-  # Extract HTTP status code
-  http_status=$(tail -n1 <<< "$response")
-
-  # Check if the request was successful
-  if [[ "$http_status" -ne 200 ]]; then
-    echo "Failed to add node $NODE_ID. HTTP status: $http_status"
-    cat /tmp/add_node_response_$NODE_ID.json
-    return 1
-  fi
-
-  echo "Node $NODE_ID added successfully!"
-  cat /tmp/add_node_response_$NODE_ID.json
+  echo "Pod $POD_NAME deployed"
 }
 
-# Iterate over the nodes and register each one
-for node in "${NODES[@]}"; do
-  IFS="|" read -r NODE_ID NODE_IP <<< "$node"
-  if ! register_node "$NODE_ID" "$NODE_IP"; then
-    echo "Error: Failed to register node $NODE_ID"
-    exit 1
-  fi
+# Main script logic
+echo "Starting orchestration..."
+
+PRIVATE_IPS=()
+# Iterate over the pods and deploy each one
+for pod in "${PODS[@]}"; do
+  IFS="|" read -r POD_NAME NODE_NAME POD_YAML LABEL_SELECTOR <<< "$pod"
+
+  # Deploy the pod
+  deploy_pod "$POD_NAME" "$NODE_NAME" "$POD_YAML" "$LABEL_SELECTOR"
+
+  sleep 60
+
+  # Get the private IP of the pod
+  PRIVATE_IP=$(kubectl get pod "$POD_NAME" -n "$NAMESPACE" -o jsonpath='{.status.podIP}')
+  echo "Private IP of Pod $POD_NAME: $PRIVATE_IP"
+
+  # Add the private IP to the array
+  PRIVATE_IPS+=("$POD_NAME|$PRIVATE_IP")
 done
 
-echo "All nodes registered successfully!"
+echo "{\"privateIPs\": $(printf '%s\n' "${PRIVATE_IPS[@]}" | jq -R . | jq -s .)}" > $AZ_SCRIPTS_OUTPUT_PATH
+# echo "All pods deployed and verified successfully."
 
 
-CUSTOMER_VNET_GUID="b4d2d13d-ee06-4eff-ba82-95d182f40a71"
-DNC_API_ENDPOINT=$DNC_URL  # Replace with the actual DNC endpoint
-POD_NAMESPACE="default"  # Replace with the pod namespace
-RETRY_COUNT=20  # Number of retry attempts
-RETRY_DELAY=3  # Delay between retries in seconds
-IP_CONSTRAINT=""
-NODE_CONSTRAINT=""
-SECONDARY_IP_COUNT=0
-PRIMARY_IP_PREFIX_BITS=0
-CONTAINER_TYPE="AzureContainerInstance"
-OWNER_ID=""
-RESERVATION_ID=""
-RESERVATION_SET_ID=""
-HOST_TO_NC=false
-NC_TO_HOST=false
-nc_id=""
+############ Stop port forwarding after the operation #############
+# Stop port forwarding
+echo "Stopping port forwarding..."
+kill $PORT_FORWARD_PID
 
-# NC_NODES=(
-#   "linuxpool160000000|10.224.0.76|container1-pod"  # Format: NODE_NAME|NODE_IP|POD_NAME TODO: Make it come from inputs
-#   "linuxpool161000000|10.224.0.78|container2-pod"
+sleep 20
+
+# Verify the process has stopped
+if kill -0 $PORT_FORWARD_PID 2>/dev/null; then
+  echo "Error: Failed to stop port forwarding"
+  exit 1
+fi
+
+echo "Port forwarding stopped successfully."
+
+
+# # Create Worker node pool(s)
+# echo "Creating Worker node pool(s)..."
+# WORKER_VMSSES=("linuxpool190") # TODO : make it come from inputs
+# INSTANCE_NAMES=()
+# # Loop through VMSS names and create VMSS
+# for VMSS_NAME in "${WORKER_VMSSES[@]}"; do
+#     EXTENSION_NAME="NodeJoin-${VMSS_NAME}"  # Unique extension name for each VMSS
+#     echo "Creating VMSS: $VMSS_NAME with extension: $EXTENSION_NAME"
+#     az deployment group create \
+#         --name "vmss-deployment-${VMSS_NAME}" \
+#         --resource-group "$RESOURCE_GROUP" \
+#         --template-file "$BICEP_TEMPLATE_PATH" \
+#         --parameters vnetname="$INFRA_VNET_NAME" \
+#                      subnetname="$INFRA_SUBNET_NAME" \
+#                      name="$VMSS_NAME" \
+#                      adminPassword="$ADMIN_PASSWORD" \
+#                      vnetrgname="$RESOURCE_GROUP" \
+#                      vmsssku="Standard_E8s_v3" \
+#                      location="westus" \
+#                      extensionName="$EXTENSION_NAME" > "./lin-script-${VMSS_NAME}.log" 2>&1 &
+#     wait
+
+#     INSTANCE_IDS=$(az vmss list-instances --resource-group "$RESOURCE_GROUP" --name "$VMSS_NAME" --query "[].instanceId" -o tsv)
+#     for INSTANCE_ID in $INSTANCE_IDS; do
+#         INSTANCE_NAME=$(az vmss get-instance-view --resource-group "$RESOURCE_GROUP" --name "$VMSS_NAME" --instance-id "$INSTANCE_ID" --query "osProfile.computerName" -o tsv)
+#         INSTANCE_NAMES+=("$INSTANCE_NAME")
+#     done
+# done
+
+# sleep 240
+
+# # Label the worker nodes and deploy the cns ConfigMap and DaemonSet
+# echo "Labeling worker nodes..."
+# WORKER_NODES=("linuxpool190000000") # TODO : make it come from inpu
+# # Label key and value
+# LABEL_KEY="kubernetes.azure.com/mode"
+# LABEL_VALUE="user"
+# # Loop through each node and apply the label
+# for NODE in "${WORKER_NODES[@]}"; do
+#   kubectl label node "$NODE" "$LABEL_KEY=$LABEL_VALUE" --overwrite
+#   kubectl label node "$NODE" node-type=cnscni --overwrite
+#   echo "Successfully labeled node: $NODE"
+# done
+
+# # Assign MI to worker nodes to access runner worker image
+# echo "Assigning Managed Identity to worker nodes..."
+# for VMSS in "${WORKER_VMSSES[@]}"; do
+#     az vmss identity assign --name $VMSS --resource-group $RESOURCE_GROUP --identities $AKS_KUBERNETES_SERVICE_MANAGED_IDENTITY_CLIENT_ID
+#     wait
+# done
+
+
+
+# DNC_POD=$(kubectl get pods -n default -l app=dnc -o jsonpath='{.items[0].metadata.name}')
+# echo "DNC Pod Name: $DNC_POD"
+# # DNC_POD=$DNC_POD_NAME
+# NAMESPACE="default"  # Replace with the namespace of the DNC deployment
+# LABEL_SELECTOR="app=dnc"  # Replace with the label selector for the DNC pod
+# LOCAL_PORT=9000  # Local port to forward
+# REMOTE_PORT=9000  # Pod's port to forward
+
+# # DNC_POD="dnc-7f75b67795-cpc5b" # TODO: make it from az command
+
+# # Start port forwarding
+# echo "Starting port forwarding from localhost:$LOCAL_PORT to $DNC_POD:$REMOTE_PORT..."
+# kubectl port-forward -n "$NAMESPACE" pod/"$DNC_POD" "$LOCAL_PORT:$REMOTE_PORT" & PORT_FORWARD_PID=$!
+
+# # Wait for port forwarding to establish
+# sleep 20
+
+# # Check if the port forwarding process is running
+# if ! kill -0 $PORT_FORWARD_PID 2>/dev/null; then
+#   echo "Error: Port forwarding failed to start"
+#   exit 1
+# fi
+
+# # Log the forwarded URL
+# DNC_URL="http://localhost:$LOCAL_PORT"
+# echo "Successfully port forwarded to DNC: $DNC_URL"
+
+
+
+
+# NODES=(
+#   "linuxpool190000000"
 # )
-# CUSTOMER_VNET_GUID="3f84330f-6410-4996-bb28-78513d2eb093"  # TODO: make it come from inputs
-# Define an array of POD_NAMES corresponding to the nodes
-POD_NAMES=(
-  #"container1-pod"
-  "container2-pod"
-)
+# # Initialize an empty array to store the formatted NODES
+# FORMATTED_NODES=()
 
-# Initialize an empty array to store the updated NODES
-NC_NODES=()
-# Loop through the NODES array and append the corresponding POD_NAME
-for i in "${!NODES[@]}"; do
-  NODE="${NODES[i]}"
-  POD_NAME="${POD_NAMES[i]}"
-  NC_NODES+=("$NODE|$POD_NAME")
-done
-CUSTOMER_SUBNET_NAMES=(
-  "delegatedSubnet"
-  # "delegatedSubnet1"
-)
+# # Loop through each node in the NODES array
+# for NODE in "${NODES[@]}"; do
+#   # Get the internal IP of the node using kubectl
+#   NODE_IP=$(kubectl get node "$NODE" -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
+  
+#   # Append the formatted NODE_ID|NODE_IP to the FORMATTED_NODES array
+#   FORMATTED_NODES+=("$NODE|$NODE_IP")
+# done
 
-# Function to create a network container (NC)
-create_nc() {
-  local NODE_NAME=$1
-  local NODE_IP=$2
-  local POD_NAME=$3
-  local CUSTOMER_SUBNET_NAME=$4
-  local NC_ID=$(uuidgen)  # Generate a unique NC ID
-  nc_id="$NC_ID"
-  echo "Attempting to create NC: $NC_ID on node: $NODE_NAME with pod: $POD_NAME"
+# # Update the NODES array with the formatted values
+# NODES=("${FORMATTED_NODES[@]}")
 
-  # Construct the NC request payload
-  if [[ -z "$RESERVATION_ID" && -z "$RESERVATION_SET_ID" ]]; then
-    # V2 request
-    nc_request=$(cat <<EOF
-{
-  "AllocationRequest": {
-    "SubnetName": "$CUSTOMER_SUBNET_NAME",
-    "IPConstraint": "$IP_CONSTRAINT",
-    "NodeConstraint": "$NODE_CONSTRAINT",
-    "SecondaryIPCount": $SECONDARY_IP_COUNT,
-    "PrimaryIPPrefixBits": $PRIMARY_IP_PREFIX_BITS
-  },
-  "AssociationInfo": {
-    "NodeID": "$NODE_NAME",
-    "InterfaceID": "$NODE_IP",
-    "ContainerType": "$CONTAINER_TYPE",
-    "OrchestratorContext": {
-      "PodName": "$POD_NAME",
-      "PodNamespace": "$POD_NAMESPACE"
-    }
-  },
-  "AllowHostToNCCommunication": $HOST_TO_NC,
-  "AllowNCToHostCommunication": $NC_TO_HOST,
-  "OwnerID": "$OWNER_ID"
-}
-EOF
-    )
-  else
-    # V1 request
-    nc_request=$(cat <<EOF
-{
-  "ReservationID": "$RESERVATION_ID",
-  "ReservationSetID": "$RESERVATION_SET_ID",
-  "AssociationInfo": {
-    "NodeID": "$NODE_NAME",
-    "InterfaceID": "$NODE_IP",
-    "ContainerType": "$CONTAINER_TYPE",
-    "OrchestratorContext": {
-      "PodName": "$POD_NAME",
-      "PodNamespace": "$POD_NAMESPACE"
-    }
-  },
-  "AllowHostToNCCommunication": $HOST_TO_NC,
-  "AllowNCToHostCommunication": $NC_TO_HOST,
-  "OwnerID": "$OWNER_ID"
-}
-EOF
-    )
-  fi
 
-  echo "NC request payload: $nc_request"
+# DNC_ENDPOINT=$DNC_URL  # Replace with the actual DNC endpoint
+# JSON_CONTENT_TYPE="application/json"
 
-  # Send the POST request to create the NC
-  response=$(curl -s -w "%{http_code}" -o /tmp/create_nc_response_$NC_ID.json -X POST "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/networkcontainer/$NC_ID?api-version=2018-03-01" \
-    -H "Content-Type: application/json" \
-    -d "$nc_request")
+# # Function to register a node
+# register_node() {
+#   local NODE_ID=$1
+#   local NODE_IP=$2
 
-  # Extract HTTP status code
-  http_status=$(tail -n1 <<< "$response")
+#   echo "Registering node: $NODE_ID with IP: $NODE_IP"
 
-  # Check if the request was successful or if there was a conflict
-  if [[ "$http_status" -ne 200 && "$http_status" -ne 409 ]]; then
-    echo "Failed to create NC $NC_ID. HTTP status: $http_status"
-    cat /tmp/create_nc_response_$NC_ID.json
-    return 1
-  fi
+#   # Node information payload
+#   NODE_INFO_JSON=$(cat <<EOF
+# {
+#   "IPAddresses": ["$NODE_IP"],
+#   "OrchestratorType": "Kubernetes",
+#   "InfrastructureNetwork": "52ebbf7f-eb3b-4eea-8ef6-51fe3e2d8bcd",
+#   "AZID": "",
+#   "NodeType": "",
+#   "NodeSet": "",
+#   "NumCores": 8,
+#   "DualstackEnabled": false
+# }
+# EOF
+#   )
 
-  echo "Successfully created NC: $NC_ID"
-  cat /tmp/create_nc_response_$NC_ID.json
-}
+#   # Send HTTP POST request to add the node
+#   response=$(curl -s -w "%{http_code}" -o /tmp/add_node_response_$NODE_ID.json -X POST "$DNC_ENDPOINT/nodes/$NODE_ID?api-version=2018-03-01" \
+#     -H "Content-Type: $JSON_CONTENT_TYPE" \
+#     -d "$NODE_INFO_JSON")
 
-# Function to poll the NC status
-poll_nc_status() {
-  local NC_ID=$1
+#   # Extract HTTP status code
+#   http_status=$(tail -n1 <<< "$response")
 
-  echo "Polling status of NC: $NC_ID"
+#   # Check if the request was successful
+#   if [[ "$http_status" -ne 200 ]]; then
+#     echo "Failed to add node $NODE_ID. HTTP status: $http_status"
+#     cat /tmp/add_node_response_$NODE_ID.json
+#     return 1
+#   fi
 
-  # Send the GET request to check the NC status
-  response=$(curl -s -w "%{http_code}" -o /tmp/nc_status_response_$NC_ID.json -X GET "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/networkcontainer/$NC_ID/status?api-version=2018-03-01" \
-    -H "Content-Type: application/json")
+#   echo "Node $NODE_ID added successfully!"
+#   cat /tmp/add_node_response_$NODE_ID.json
+# }
 
-  # Extract HTTP status code
-  http_status=$(tail -n1 <<< "$response")
+# # Iterate over the nodes and register each one
+# for node in "${NODES[@]}"; do
+#   IFS="|" read -r NODE_ID NODE_IP <<< "$node"
+#   if ! register_node "$NODE_ID" "$NODE_IP"; then
+#     echo "Error: Failed to register node $NODE_ID"
+#     exit 1
+#   fi
+# done
 
-  # Check if the request was successful
-  if [[ "$http_status" -ne 200 ]]; then
-    echo "Failed to get status for NC $NC_ID. HTTP status: $http_status"
-    cat /tmp/nc_status_response_$NC_ID.json
-    return 1
-  fi
+# echo "All nodes registered successfully!"
 
-  # Parse the status from the response
-  nc_status=$(jq -r '.Status' /tmp/nc_status_response_$NC_ID.json)
-  if [[ "$nc_status" != "Completed" ]]; then
-    echo "NC $NC_ID status is not 'Completed'. Current status: $nc_status"
-    return 1
-  fi
 
-  echo "NC $NC_ID status is 'Completed'."
-}
+# CUSTOMER_VNET_GUID="b4d2d13d-ee06-4eff-ba82-95d182f40a71"
+# DNC_API_ENDPOINT=$DNC_URL  # Replace with the actual DNC endpoint
+# POD_NAMESPACE="default"  # Replace with the pod namespace
+# RETRY_COUNT=20  # Number of retry attempts
+# RETRY_DELAY=3  # Delay between retries in seconds
+# IP_CONSTRAINT=""
+# NODE_CONSTRAINT=""
+# SECONDARY_IP_COUNT=0
+# PRIMARY_IP_PREFIX_BITS=0
+# CONTAINER_TYPE="AzureContainerInstance"
+# OWNER_ID=""
+# RESERVATION_ID=""
+# RESERVATION_SET_ID=""
+# HOST_TO_NC=false
+# NC_TO_HOST=false
+# nc_id=""
 
-# Iterate over the nodes and register NCs for each
-for index in "${!NC_NODES[@]}"; do
-  IFS="|" read -r NODE_NAME NODE_IP POD_NAME <<< "${NC_NODES[index]}"
-  CUSTOMER_SUBNET_NAME="${CUSTOMER_SUBNET_NAMES[index]}"
+# # NC_NODES=(
+# #   "linuxpool160000000|10.224.0.76|container1-pod"  # Format: NODE_NAME|NODE_IP|POD_NAME TODO: Make it come from inputs
+# #   "linuxpool161000000|10.224.0.78|container2-pod"
+# # )
+# # CUSTOMER_VNET_GUID="3f84330f-6410-4996-bb28-78513d2eb093"  # TODO: make it come from inputs
+# # Define an array of POD_NAMES corresponding to the nodes
+# POD_NAMES=(
+#   #"container1-pod"
+#   "container2-pod"
+# )
 
-  # Retry logic for creating the NC
-  attempt=1
-  while [[ $attempt -le $RETRY_COUNT ]]; do
-    if create_nc "$NODE_NAME" "$NODE_IP" "$POD_NAME" "$CUSTOMER_SUBNET_NAME"; then
-      echo "Create NC succeeded on attempt $attempt for node: $NODE_NAME."
-      break
-    fi
+# # Initialize an empty array to store the updated NODES
+# NC_NODES=()
+# # Loop through the NODES array and append the corresponding POD_NAME
+# for i in "${!NODES[@]}"; do
+#   NODE="${NODES[i]}"
+#   POD_NAME="${POD_NAMES[i]}"
+#   NC_NODES+=("$NODE|$POD_NAME")
+# done
+# CUSTOMER_SUBNET_NAMES=(
+#   "delegatedSubnet"
+#   # "delegatedSubnet1"
+# )
 
-    echo "Create NC failed on attempt $attempt for node: $NODE_NAME. Retrying in $RETRY_DELAY seconds..."
-    sleep "$RETRY_DELAY"
-    attempt=$((attempt + 1))
-  done
+# # Function to create a network container (NC)
+# create_nc() {
+#   local NODE_NAME=$1
+#   local NODE_IP=$2
+#   local POD_NAME=$3
+#   local CUSTOMER_SUBNET_NAME=$4
+#   local NC_ID=$(uuidgen)  # Generate a unique NC ID
+#   nc_id="$NC_ID"
+#   echo "Attempting to create NC: $NC_ID on node: $NODE_NAME with pod: $POD_NAME"
 
-  if [[ $attempt -gt $RETRY_COUNT ]]; then
-    echo "Failed to create NC for node: $NODE_NAME after $RETRY_COUNT attempts."
-    exit 1
-  fi
+#   # Construct the NC request payload
+#   if [[ -z "$RESERVATION_ID" && -z "$RESERVATION_SET_ID" ]]; then
+#     # V2 request
+#     nc_request=$(cat <<EOF
+# {
+#   "AllocationRequest": {
+#     "SubnetName": "$CUSTOMER_SUBNET_NAME",
+#     "IPConstraint": "$IP_CONSTRAINT",
+#     "NodeConstraint": "$NODE_CONSTRAINT",
+#     "SecondaryIPCount": $SECONDARY_IP_COUNT,
+#     "PrimaryIPPrefixBits": $PRIMARY_IP_PREFIX_BITS
+#   },
+#   "AssociationInfo": {
+#     "NodeID": "$NODE_NAME",
+#     "InterfaceID": "$NODE_IP",
+#     "ContainerType": "$CONTAINER_TYPE",
+#     "OrchestratorContext": {
+#       "PodName": "$POD_NAME",
+#       "PodNamespace": "$POD_NAMESPACE"
+#     }
+#   },
+#   "AllowHostToNCCommunication": $HOST_TO_NC,
+#   "AllowNCToHostCommunication": $NC_TO_HOST,
+#   "OwnerID": "$OWNER_ID"
+# }
+# EOF
+#     )
+#   else
+#     # V1 request
+#     nc_request=$(cat <<EOF
+# {
+#   "ReservationID": "$RESERVATION_ID",
+#   "ReservationSetID": "$RESERVATION_SET_ID",
+#   "AssociationInfo": {
+#     "NodeID": "$NODE_NAME",
+#     "InterfaceID": "$NODE_IP",
+#     "ContainerType": "$CONTAINER_TYPE",
+#     "OrchestratorContext": {
+#       "PodName": "$POD_NAME",
+#       "PodNamespace": "$POD_NAMESPACE"
+#     }
+#   },
+#   "AllowHostToNCCommunication": $HOST_TO_NC,
+#   "AllowNCToHostCommunication": $NC_TO_HOST,
+#   "OwnerID": "$OWNER_ID"
+# }
+# EOF
+#     )
+#   fi
 
-  # Retry logic for polling the NC status
-  attempt=1
-  while [[ $attempt -le $RETRY_COUNT ]]; do
-    if poll_nc_status "$nc_id"; then
-      echo "NC status check succeeded on attempt $attempt for node: $NODE_NAME."
-      break
-    fi
+#   echo "NC request payload: $nc_request"
 
-    echo "NC status check failed on attempt $attempt for node: $NODE_NAME. Retrying in $RETRY_DELAY seconds..."
-    sleep "$RETRY_DELAY"
-    attempt=$((attempt + 1))
-  done
+#   # Send the POST request to create the NC
+#   response=$(curl -s -w "%{http_code}" -o /tmp/create_nc_response_$NC_ID.json -X POST "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/networkcontainer/$NC_ID?api-version=2018-03-01" \
+#     -H "Content-Type: application/json" \
+#     -d "$nc_request")
 
-  if [[ $attempt -gt $RETRY_COUNT ]]; then
-    echo "Failed to verify NC status for node: $NODE_NAME after $RETRY_COUNT attempts."
-    exit 1
-  fi
-done
+#   # Extract HTTP status code
+#   http_status=$(tail -n1 <<< "$response")
 
-echo "All NCs registered and verified successfully!"
+#   # Check if the request was successful or if there was a conflict
+#   if [[ "$http_status" -ne 200 && "$http_status" -ne 409 ]]; then
+#     echo "Failed to create NC $NC_ID. HTTP status: $http_status"
+#     cat /tmp/create_nc_response_$NC_ID.json
+#     return 1
+#   fi
+
+#   echo "Successfully created NC: $NC_ID"
+#   cat /tmp/create_nc_response_$NC_ID.json
+# }
+
+# # Function to poll the NC status
+# poll_nc_status() {
+#   local NC_ID=$1
+
+#   echo "Polling status of NC: $NC_ID"
+
+#   # Send the GET request to check the NC status
+#   response=$(curl -s -w "%{http_code}" -o /tmp/nc_status_response_$NC_ID.json -X GET "$DNC_API_ENDPOINT/networks/$CUSTOMER_VNET_GUID/networkcontainer/$NC_ID/status?api-version=2018-03-01" \
+#     -H "Content-Type: application/json")
+
+#   # Extract HTTP status code
+#   http_status=$(tail -n1 <<< "$response")
+
+#   # Check if the request was successful
+#   if [[ "$http_status" -ne 200 ]]; then
+#     echo "Failed to get status for NC $NC_ID. HTTP status: $http_status"
+#     cat /tmp/nc_status_response_$NC_ID.json
+#     return 1
+#   fi
+
+#   # Parse the status from the response
+#   nc_status=$(jq -r '.Status' /tmp/nc_status_response_$NC_ID.json)
+#   if [[ "$nc_status" != "Completed" ]]; then
+#     echo "NC $NC_ID status is not 'Completed'. Current status: $nc_status"
+#     return 1
+#   fi
+
+#   echo "NC $NC_ID status is 'Completed'."
+# }
+
+# # Iterate over the nodes and register NCs for each
+# for index in "${!NC_NODES[@]}"; do
+#   IFS="|" read -r NODE_NAME NODE_IP POD_NAME <<< "${NC_NODES[index]}"
+#   CUSTOMER_SUBNET_NAME="${CUSTOMER_SUBNET_NAMES[index]}"
+
+#   # Retry logic for creating the NC
+#   attempt=1
+#   while [[ $attempt -le $RETRY_COUNT ]]; do
+#     if create_nc "$NODE_NAME" "$NODE_IP" "$POD_NAME" "$CUSTOMER_SUBNET_NAME"; then
+#       echo "Create NC succeeded on attempt $attempt for node: $NODE_NAME."
+#       break
+#     fi
+
+#     echo "Create NC failed on attempt $attempt for node: $NODE_NAME. Retrying in $RETRY_DELAY seconds..."
+#     sleep "$RETRY_DELAY"
+#     attempt=$((attempt + 1))
+#   done
+
+#   if [[ $attempt -gt $RETRY_COUNT ]]; then
+#     echo "Failed to create NC for node: $NODE_NAME after $RETRY_COUNT attempts."
+#     exit 1
+#   fi
+
+#   # Retry logic for polling the NC status
+#   attempt=1
+#   while [[ $attempt -le $RETRY_COUNT ]]; do
+#     if poll_nc_status "$nc_id"; then
+#       echo "NC status check succeeded on attempt $attempt for node: $NODE_NAME."
+#       break
+#     fi
+
+#     echo "NC status check failed on attempt $attempt for node: $NODE_NAME. Retrying in $RETRY_DELAY seconds..."
+#     sleep "$RETRY_DELAY"
+#     attempt=$((attempt + 1))
+#   done
+
+#   if [[ $attempt -gt $RETRY_COUNT ]]; then
+#     echo "Failed to verify NC status for node: $NODE_NAME after $RETRY_COUNT attempts."
+#     exit 1
+#   fi
+# done
+
+# echo "All NCs registered and verified successfully!"
 
 
 
