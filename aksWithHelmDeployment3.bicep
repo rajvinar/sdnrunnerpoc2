@@ -493,7 +493,7 @@ resource helmScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
     // timeout: 'PT20M'
     // scriptContent: 'echo "abc..."'
     primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/joinVMSS.sh'
-    arguments: '-g ${rg} -c ${clusterName} -b linux.bicep -p 123aA! -u 9b8218f9-902a-4d20-a65c-e98acec5362f -v ${infraVnetName} -s ${subnetName} -t ${ds.properties.outputs.salToken} -V ${customerVnet.id}  -m ${aksClusterKubeletIdentity.id}'
+    arguments: '-g ${rg} -c ${clusterName} -b linux.bicep -p 123aA! -u 9b8218f9-902a-4d20-a65c-e98acec5362f -v ${infraVnetName} -s ${subnetName} -t ${ds.properties.outputs.salToken} -V ${customerVnet.id}  -m ${aksClusterKubeletIdentity.id} -d ${cosmosdbName}'
     //primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/test.sh'
     //arguments: '-a ${ds.properties.outputs.salToken}'
     supportingScriptUris: [

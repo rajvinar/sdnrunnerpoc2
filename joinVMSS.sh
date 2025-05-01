@@ -13,7 +13,8 @@ usage() {
 -u <subscription-id> \
 -t <sal-token> \
 -V <customer-vnet-id>     : ID of the customer virtual network \
--m <managed-identity-client-id> : Managed Identity Client ID for AKS"
+-m <managed-identity-client-id> : Managed Identity Client ID for AKS
+-d <db-name>"
     exit 1
 }
 
@@ -27,7 +28,7 @@ while getopts "g:c:b:p:v:s:u:t:V:m:" opt; do
         v) INFRA_VNET_NAME="$OPTARG" ;;
         s) INFRA_SUBNET_NAME="$OPTARG" ;;
         u) SUBSCRIPTION_ID="$OPTARG" ;;
-        t) SAL_TOKEN="$OPTARG" ;;
+        t) SAL_TOKENS="$OPTARG" ;;
         # w) WORKER_NODES_INPUT="$OPTARG" ;;
         # d) DNC_NODES_INPUT="$OPTARG" ;;
         # W) WORKER_VMSSES_INPUT="$OPTARG" ;;
@@ -39,6 +40,7 @@ while getopts "g:c:b:p:v:s:u:t:V:m:" opt; do
         # n) NC_NODES_INPUT="$OPTARG" ;;
         # o) NODES_INPUT="$OPTARG" ;;
         m) AKS_KUBERNETES_SERVICE_MANAGED_IDENTITY_CLIENT_ID="$OPTARG" ;; 
+        d) DB_NAME="$OPTARG" ;; 
         *) usage ;;
     esac
 done
@@ -67,8 +69,11 @@ fi
 if [[ -z "${SUBSCRIPTION_ID:-}" ]]; then
     missing_params+=("-u <subscription-id>")
 fi
-if [[ -z "${SAL_TOKEN:-}" ]]; then
-    missing_params+=("-u <sal-token>")
+if [[ -z "${SAL_TOKENS:-}" ]]; then
+    missing_params+=("-t <sal-token>")
+fi
+if [[ -z "${DB_NAME:-}" ]]; then
+    missing_params+=("-d <db-name>")
 fi
 # if [[ -z "${WORKER_NODES_INPUT:-}" ]]; then
 #     missing_params+=("-w <worker-nodes>")
@@ -274,6 +279,7 @@ echo "Labeling dnc node..."
 kubectl label node ${DNC_NODES[0]} node-type=dnc
 
 export RESOURCE_GROUP=$RESOURCE_GROUP
+export DB_NAME=$DB_NAME
 envsubst < dnc_configmap.yaml > temp.yaml && mv temp.yaml dnc_configmap.yaml
 echo "Deploying dnc_configmap.yaml to namespace default..."
 kubectl apply -f dnc_configmap.yaml -n default
@@ -431,10 +437,12 @@ RETRY_DELAY=3  # Delay between retries in seconds
 
 # CUSTOMER_VNET_GUID="3f84330f-6410-4996-bb28-78513d2eb093"  # # This is customer vnet id. TODO: Make it come from inputs 
 CUSTOMER_SUBNET_NAMES=("delegatedSubnet" "delegatedSubnet1")  # TODO: Make it come from inputs 
+IFS='|' read -r -a tokens <<< "$SAL_TOKENS"
 
 # Function to add a subnet
 add_subnet() {
   local CUSTOMER_SUBNET_NAME=$1
+  local SAL_TOKEN=$2
   echo "Attempting to add subnet: $CUSTOMER_SUBNET_NAME to VNet: $CUSTOMER_VNET_GUID"
   echo "AUTH_TOKEN: $SAL_TOKEN"
   # Construct the subnet request payload
@@ -496,10 +504,12 @@ check_subnet_status() {
 }
 
 # Retry logic for adding the subnets
-for CUSTOMER_SUBNET_NAME in "${CUSTOMER_SUBNET_NAMES[@]}"; do
+for i in "${!CUSTOMER_SUBNET_NAMES[@]}"; do
+  CUSTOMER_SUBNET_NAME="${CUSTOMER_SUBNET_NAMES[i]}"
+  TOKEN="${tokens[i]}"
   attempt=1
   while [[ $attempt -le $RETRY_COUNT ]]; do
-    if add_subnet "$CUSTOMER_SUBNET_NAME"; then
+    if add_subnet "$CUSTOMER_SUBNET_NAME" "$TOKEN"; then
       echo "Add subnet succeeded on attempt $attempt for subnet: $CUSTOMER_SUBNET_NAME."
       break
     fi
