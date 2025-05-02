@@ -34,23 +34,17 @@ param logFilePath string = './'
 @description('Enable logging for VMSS deployment')
 param enableLogging bool = true
 
-resource dncVmssDeployments 'Microsoft.Resources/deployments@2021-04-01' = [for vmssName in vmssNames: {
+module vmssDeployments './linux.bicep' = [for vmssName in vmssNames: {
   name: '${deploymentNamePrefix}-${vmssName}'
-  properties: {
-    mode: 'Incremental'
-    templateLink: {
-      uri: bicepTemplatePath
-    }
-    parameters: {
-      vnetname: infraVnetName
-      subnetname: infraSubnetName
-      name: vmssName
-      adminPassword: adminPassword
-      vnetrgname: vnetResourceGroupName
-      vmsssku: vmssSku
-      location: location
-      extensionName: '${extensionNamePrefix}-${vmssName}'
-    }
+  params: {
+    vnetname: infraVnetName
+    subnetname: infraSubnetName
+    name: vmssName
+    adminPassword: adminPassword
+    vnetrgname: vnetResourceGroupName
+    vmsssku: vmssSku
+    location: location
+    extensionName: '${extensionNamePrefix}-${vmssName}'
   }
 }]
 
