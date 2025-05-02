@@ -154,7 +154,7 @@ for VMSS in "${WORKER_VMSSES[@]}"; do
 
   WORKER_NODES+=("${NODES[@]}")
 done
-echo "${WORKER_NODES[@]}"
+echo "WORKER_NODES: ${WORKER_NODES[@]}"
 
 
 DNC_NODES=()
@@ -180,7 +180,7 @@ for VMSS in "${DNC_VMSSES[@]}"; do
   # Example: Add nodes to a global array for later use
   DNC_NODES+=("${NODES[@]}")
 done
-echo "${DNC_NODES[@]}"
+echo "DNC_NODES: ${DNC_NODES[@]}"
 
 
 
@@ -498,7 +498,8 @@ done
 
 # Update the NODES array with the formatted values
 NODES=("${FORMATTED_NODES[@]}")
-echo "Formatted NODES array: $NODES"
+echo "Formatted NODES array: ${NODES[@]}"
+echo "WORKER_NODES after transformation: ${WORKER_NODES[@]}"
 
 DNC_ENDPOINT=$DNC_URL  # Replace with the actual DNC endpoint
 JSON_CONTENT_TYPE="application/json"
@@ -593,6 +594,7 @@ for i in "${!NODES[@]}"; do
   POD_NAME="${POD_NAMES[i]}"
   NC_NODES+=("$NODE|$POD_NAME")
 done
+echo "NC_NODES: ${NC_NODES[@]}"
 CUSTOMER_SUBNET_NAMES=("delegatedSubnet" "delegatedSubnet1")
 
 # Function to create a network container (NC)
@@ -715,7 +717,7 @@ for index in "${!NC_NODES[@]}"; do
   attempt=1
   while [[ $attempt -le $RETRY_COUNT ]]; do
     if create_nc "$NODE_NAME" "$NODE_IP" "$POD_NAME" "$CUSTOMER_SUBNET_NAME"; then
-      echo "Create NC succeeded on attempt $attempt for node: $NODE_NAME."
+      echo "Create NC succeeded on attempt $attempt for node: $NODE_NAME $NODE_IP $POD_NAME $CUSTOMER_SUBNET_NAME $nc_id."
       break
     fi
 
@@ -733,7 +735,7 @@ for index in "${!NC_NODES[@]}"; do
   attempt=1
   while [[ $attempt -le $RETRY_COUNT ]]; do
     if poll_nc_status "$nc_id"; then
-      echo "NC status check succeeded on attempt $attempt for node: $NODE_NAME."
+      echo "NC status check succeeded on attempt $attempt for node:  $NODE_NAME $NODE_IP $POD_NAME $CUSTOMER_SUBNET_NAME $nc_id."
       break
     fi
 
@@ -782,7 +784,7 @@ deploy_pod() {
   local POD_YAML=$3
   local LABEL_SELECTOR=$4
 
-  echo "Deploying pod: $POD_NAME on node: $NODE_NAME with YAML: $POD_YAML"
+  echo "Deploying pod: $POD_NAME on node: $NODE_NAME with YAML: $POD_YAML with label: $LABEL_SELECTOR"
 
   # Label the node
   kubectl label node "$NODE_NAME" "$LABEL_SELECTOR" --overwrite
@@ -795,6 +797,8 @@ deploy_pod() {
   echo "Pod $POD_NAME deployed"
 }
 
+# sleep 3mins to wait for nodes to be ready
+sleep 240
 # Main script logic
 echo "Starting orchestration..."
 
