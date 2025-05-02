@@ -19,7 +19,7 @@ usage() {
 }
 
 # Parse command-line arguments
-while getopts "g:c:b:p:v:s:u:t:W:D:V:m:d:" opt; do
+while getopts "g:c:b:p:v:s:u:t:W:D:V:N:m:d:" opt; do
     case "$opt" in
         g) RESOURCE_GROUP="$OPTARG" ;;
         c) CLUSTER_NAME="$OPTARG" ;;
@@ -34,6 +34,7 @@ while getopts "g:c:b:p:v:s:u:t:W:D:V:m:d:" opt; do
         W) WORKER_VMSSES_INPUT="$OPTARG" ;;
         D) DNC_VMSSES_INPUT="$OPTARG" ;;
         V) CUSTOMER_VNET_ID="$OPTARG" ;;
+        N) CUSTOMER_VNET_NAME="$OPTARG" ;;
         # S) CUSTOMER_SUBNET_NAMES_INPUT="$OPTARG" ;; 
         # P) PODS_INPUT="$OPTARG" ;;
         # N) DNC_POD_NAME="$OPTARG" ;;
@@ -89,6 +90,9 @@ if [[ -z "${DNC_VMSSES_INPUT:-}" ]]; then
 fi
 if [[ -z "${CUSTOMER_VNET_ID:-}" ]]; then
     missing_params+=("-V <customer-vnet-id>")
+fi
+if [[ -z "${CUSTOMER_VNET_NAME:-}" ]]; then
+    missing_params+=("-N <customer-vnet-name>")
 fi
 # if [[ -z "${CUSTOMER_SUBNET_NAMES_INPUT:-}" ]]; then
 #     missing_params+=("-S <customer-subnet-names>")
@@ -529,7 +533,7 @@ done
 #   "linuxpool20000000"
 #   "linuxpool21000000"
 # )
-NODES=$WORKER_NODES
+NODES=("${WORKER_NODES[@]}")
 # Initialize an empty array to store the formatted NODES
 FORMATTED_NODES=()
 
@@ -862,17 +866,17 @@ for pod in "${PODS[@]}"; do
   PRIVATE_IPS+=("$POD_NAME|$PRIVATE_IP")
 done
 
-SUBNET_IDS=$(az network vnet show --ids "$CUSTOMER_VNET_ID" --query "subnets[].id" -o tsv)
+# SUBNET_IDS=$(az network vnet show --ids "$CUSTOMER_VNET_ID" --query "subnets[].id" -o tsv)
 
-# Check if any subnets were found
-if [[ -z "$SUBNET_IDS" ]]; then
-  echo "No subnets found in VNet: $CUSTOMER_VNET_ID"
-  exit 1
-fi
+# # Check if any subnets were found
+# if [[ -z "$SUBNET_IDS" ]]; then
+#   echo "No subnets found in VNet: $CUSTOMER_VNET_ID"
+#   exit 1
+# fi
 
-# Print the subnet resource IDs
-echo "Subnet Resource IDs in VNet $CUSTOMER_VNET_ID:"
-echo "$SUBNET_IDS"
+# # Print the subnet resource IDs
+# echo "Subnet Resource IDs in VNet $CUSTOMER_VNET_ID:"
+# echo "$SUBNET_IDS"
 
 
 echo "Generating output with private IPs and subnet IDs..."
@@ -881,7 +885,7 @@ echo "Generating output with private IPs and subnet IDs..."
 PRIVATE_IPS_JSON=$(printf '%s\n' "${PRIVATE_IPS[@]}" | jq -R . | jq -s .)
 
 # Get the subnet IDs from the VNet
-SUBNET_IDS=$(az network vnet show --ids "$CUSTOMER_VNET_ID" --query "subnets[].id" -o json)
+SUBNET_IDS=$(az network vnet show -n "$CUSTOMER_VNET_NAME" --resource-group $RESOURCE_GROUP --query "subnets[].id" -o json)
 
 # Combine both into a single JSON object and write to the output path
 echo "{\"privateIPs\": $PRIVATE_IPS_JSON, \"subnetIDs\": $SUBNET_IDS}" > $AZ_SCRIPTS_OUTPUT_PATH
