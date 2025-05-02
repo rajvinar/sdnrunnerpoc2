@@ -132,6 +132,8 @@ apk add --no-cache util-linux
 apk add --no-cache jq
 apk add --no-cache gettext
 
+# try to sleep for 5mins to wait for nodes to be ready
+sleep 300
 
 WORKER_NODES=()
 # Get instances/nodes in each VMSS
