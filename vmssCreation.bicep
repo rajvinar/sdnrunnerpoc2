@@ -1,6 +1,3 @@
-@description('Name of the resource group')
-param resourceGroupName string
-
 @description('Name of the infrastructure VNet')
 param infraVnetName string
 
@@ -29,7 +26,7 @@ param extensionNamePrefix string = 'NodeJoin'
 param deploymentNamePrefix string = 'vmss-deployment'
 
 @description('Resource group name for the VNet')
-param vnetResourceGroupName string = resourceGroupName
+param vnetResourceGroupName string
 
 @description('Log file path for VMSS deployment')
 param logFilePath string = './'

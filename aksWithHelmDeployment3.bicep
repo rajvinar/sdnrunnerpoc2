@@ -10,6 +10,7 @@ param cosmosdbName string
 @description('Subscription ID')
 param subscriptionId string
 param infraVnetName string = 'infraVnet'
+param infraSubnetName string = 'infraSubnet'
 param aciSubnetName string = 'aci-subnet'
 param customerVnetName string = 'customerVnet'
 param delegatedSubnetName string = 'delegatedSubnet'
@@ -17,7 +18,7 @@ param delegatedSubnet1Name string = 'delegatedSubnet1'
 param subnetDelegatorEnvironment string = 'env-westus-u3h4j'
 param subnetDelegatorName string = 'subnetdelegator-westus-u3h4j'
 param subnetDelegatorRg string = 'subnetdelegator-westus'
-var subnetName = 'infraSubnet'
+
 var dataActions = [
   'Microsoft.DocumentDB/databaseAccounts/readMetadata'
   'Microsoft.DocumentDB/databaseAccounts/throughputSettings/*'
@@ -141,7 +142,7 @@ resource infraVnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
     }
     subnets: [
       {
-        name: 'infraSubnet'
+        name: infraSubnetName
         properties: {
           addressPrefix: '10.224.0.0/16'
         }
@@ -482,8 +483,8 @@ resource helmScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
     timeout: 'PT1H30M'
     // timeout: 'PT20M'
     // scriptContent: 'echo "abc..."'
-    primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/joinVMSS.sh'
-    arguments: '-g ${rg} -c ${clusterName} -b linux.bicep -p 123aA! -u 9b8218f9-902a-4d20-a65c-e98acec5362f -v ${infraVnetName} -s ${subnetName} -t "${ds.properties.outputs.salToken}|${ds.properties.outputs.salToken1}" -V ${customerVnet.properties.resourceGuid}  -m ${aksClusterKubeletIdentity.id} -d ${cosmosdbName}'
+    primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/preDeployment.sh'
+    arguments: '-g ${rg} -c ${clusterName} -b linux.bicep -p 123aA! -u 9b8218f9-902a-4d20-a65c-e98acec5362f -v ${infraVnetName} -s ${infraSubnetName} -t "${ds.properties.outputs.salToken}|${ds.properties.outputs.salToken1}" -V ${customerVnet.properties.resourceGuid}  -m ${aksClusterKubeletIdentity.id} -d ${cosmosdbName}'
     //primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/test.sh'
     //arguments: '-a ${ds.properties.outputs.salToken}'
     supportingScriptUris: [
@@ -522,6 +523,19 @@ resource helmScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   // }
 }
 
+
+module vmssCreation 'vmssCreation.bicep' = {
+  name: 'vmssCreationModule'
+  params: {
+    vnetResourceGroupName: rg
+    infraVnetName: infraVnetName
+    infraSubnetName: infraSubnetName
+    vmssNames: ['dncpool20']
+  }
+  dependsOn: [helmScript]
+}
+
+output vmssLogs array = vmssCreation.outputs.vmssDeploymentLogs
 
 
 
