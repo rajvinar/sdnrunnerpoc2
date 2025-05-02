@@ -13,6 +13,7 @@ param infraVnetName string = 'infraVnet'
 param aciSubnetName string = 'aci-subnet'
 param customerVnetName string = 'customerVnet'
 param delegatedSubnetName string = 'delegatedSubnet'
+param delegatedSubnet1Name string = 'delegatedSubnet1'
 param subnetDelegatorEnvironment string = 'env-westus-u3h4j'
 param subnetDelegatorName string = 'subnetdelegator-westus-u3h4j'
 param subnetDelegatorRg string = 'subnetdelegator-westus'
@@ -27,20 +28,6 @@ var dataActions = [
   'Microsoft.DocumentDB/databaseAccounts/tables/containers/entities/*'
 ] 
 
-//////////////////////////////////////
-// resource testIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
-//   name: 'testKubeletIdentity'
-//   location: region
-// }
-
-// module roleAssignments './roleAssignmentsInSub.bicep' = {
-//   name: 'roleAssignmentsDeployment'
-//   scope: subscription() // Explicitly set the module scope to subscription
-//   params: {
-//     principalId: testIdentity.properties.principalId
-//   }
-// }
-//////////////////////////////////////////
 
 resource customRole 'Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions@2024-12-01-preview' = {
   name: guid(cosmosdb.id, 'DncCosmosDbRbacRole')
@@ -219,7 +206,7 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2021-08-01' = {
     }
     subnets: [
       {
-        name: 'delegatedSubnet'
+        name: delegatedSubnetName
         properties: {
           addressPrefix: '10.0.0.0/24'
           delegations: [
@@ -233,7 +220,7 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2021-08-01' = {
         }
       }
       {
-        name: 'delegatedSubnet1'
+        name: delegatedSubnet1Name
         properties: {
           addressPrefix: '10.0.1.0/24'
           delegations: [
@@ -456,7 +443,9 @@ resource ds 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
       'curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/VirtualNetwork/%2Fsubscriptions%2F${subscriptionId}%2FresourceGroups%2F${rg}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${infraVnetName};',
       'resp=$(curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/DelegatedSubnet/%2Fsubscriptions%2F${subscriptionId}%2FresourceGroups%2F${rg}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${customerVnetName}%2Fsubnets%2F${delegatedSubnetName});',
       'token=$(echo "$resp" | grep -oP \'(?<=\\{).*?(?=\\})\' | sed -n \'s/.*"primaryToken":"\\([^"]*\\)".*/\\1/p\');',
-      'echo "{\\"salToken\\":\\"$token\\"}" > $AZ_SCRIPTS_OUTPUT_PATH;',
+      'resp1=$(curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/DelegatedSubnet/%2Fsubscriptions%2F${subscriptionId}%2FresourceGroups%2F${rg}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${customerVnetName}%2Fsubnets%2F${delegatedSubnet1Name});',
+      'token1=$(echo "$resp1" | grep -oP \'(?<=\\{).*?(?=\\})\' | sed -n \'s/.*"primaryToken":"\\([^"]*\\)".*/\\1/p\');',
+      'echo "{\\"salToken\\":\\"$token\\",\\"salToken1\\":\\"$token1\\"}" > $AZ_SCRIPTS_OUTPUT_PATH;',
       'cat $AZ_SCRIPTS_OUTPUT_PATH;'
     )
   }
@@ -465,6 +454,7 @@ resource ds 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
 
 // Outputs
 output salToken string = ds.properties.outputs.salToken
+output salToken1 string = ds.properties.outputs.salToken1
 
 // Execute script
 resource helmScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
@@ -489,11 +479,11 @@ resource helmScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
     forceUpdateTag: randomGuid
     retentionInterval: 'PT2H'
     cleanupPreference: 'OnExpiration'
-    timeout: 'PT1H10M'
+    timeout: 'PT1H30M'
     // timeout: 'PT20M'
     // scriptContent: 'echo "abc..."'
     primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/joinVMSS.sh'
-    arguments: '-g ${rg} -c ${clusterName} -b linux.bicep -p 123aA! -u 9b8218f9-902a-4d20-a65c-e98acec5362f -v ${infraVnetName} -s ${subnetName} -t ${ds.properties.outputs.salToken} -V ${customerVnet.id}  -m ${aksClusterKubeletIdentity.id} -d ${cosmosdbName}'
+    arguments: '-g ${rg} -c ${clusterName} -b linux.bicep -p 123aA! -u 9b8218f9-902a-4d20-a65c-e98acec5362f -v ${infraVnetName} -s ${subnetName} -t "${ds.properties.outputs.salToken}|${ds.properties.outputs.salToken1}" -V ${customerVnet.properties.resourceGuid}  -m ${aksClusterKubeletIdentity.id} -d ${cosmosdbName}'
     //primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/test.sh'
     //arguments: '-a ${ds.properties.outputs.salToken}'
     supportingScriptUris: [
@@ -531,7 +521,11 @@ resource helmScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   //   'Az.Sec.DisableLocalAuth.Storage::Skip': 'Temporary bypass for deployment'
   // }
 }
-output privateIPs array = helmScript.properties.outputs.privateIPs
+
+
+
+
+// output privateIPs array = helmScript.properties.outputs.privateIPs
 
 // // Cleanup script
 // resource dsGc 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
