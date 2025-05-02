@@ -10,12 +10,12 @@ param ipTagValue string = '/DelegatedNetworkControllerTest'
 
 var containerGroup1 = {
   publicIPName: 'container1PublicIP'
-  publicIPDNSName: 'dala0container1'
+  publicIPDNSName: 'container1${uniqueString(resourceGroup().id)}'
 }
 
 var containerGroup2 = {
   publicIPName: 'container2PublicIP'
-  publicIPDNSName: 'dala0container2'
+  publicIPDNSName: 'container2${uniqueString(resourceGroup().id)}'
 }
 
 resource containerGroup1PublicIP 'Microsoft.Network/publicIPAddresses@2020-06-01' = {
