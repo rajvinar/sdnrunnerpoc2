@@ -194,12 +194,6 @@ for NODE in "${WORKER_NODES[@]}"; do
   echo "Successfully labeled node: $NODE"
 done
 
-# # Assign MI to worker nodes to access runner worker image
-# echo "Assigning Managed Identity to worker nodes..."
-# for VMSS in "${WORKER_VMSSES[@]}"; do
-#     az vmss identity assign --name $VMSS --resource-group $RESOURCE_GROUP --identities $AKS_KUBERNETES_SERVICE_MANAGED_IDENTITY_CLIENT_ID
-#     wait
-# done
 
 # echo "Deploying cns ConfigMap and DaemonSet..."
 # Deploy the cns ConfigMap
@@ -220,12 +214,6 @@ export DB_NAME=$DB_NAME
 envsubst < dnc_configmap.yaml > temp.yaml && mv temp.yaml dnc_configmap.yaml
 echo "Deploying dnc_configmap.yaml to namespace default..."
 kubectl apply -f dnc_configmap.yaml -n default
-
-# # Assign MI to worker nodes to access dnc image
-# echo "Assigning Managed Identity to dnc node..."
-# for VMSS in "${DNC_VMSSES[@]}"; do
-#     az vmss identity assign --name $VMSS --resource-group $RESOURCE_GROUP --identities $AKS_KUBERNETES_SERVICE_MANAGED_IDENTITY_CLIENT_ID
-# done
 
 echo "Deploying dnc_deployment.yaml to namespace default..."
 kubectl apply -f dnc_deployment.yaml -n default

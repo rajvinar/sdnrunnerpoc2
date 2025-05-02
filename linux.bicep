@@ -16,6 +16,7 @@ param vnetname string
 param vnetrgname string
 param subnetname string = 'nodes'
 param extensionName string
+param aksClusterKubeletIdentityId string
 
 @description('Security Type of the Virtual Machine.')
 @allowed([
@@ -79,6 +80,7 @@ resource vmss 'Microsoft.Compute/virtualMachineScaleSets@2023-03-01' = {
     type: 'UserAssigned'
     userAssignedIdentities: {
       '${aksbootstrapid.id}': {}
+      '${aksClusterKubeletIdentityId}': {}
     }
   }
   sku: {

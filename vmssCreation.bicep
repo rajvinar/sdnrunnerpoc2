@@ -34,6 +34,8 @@ param logFilePath string = './'
 @description('Enable logging for VMSS deployment')
 param enableLogging bool = true
 
+param aksClusterKubeletIdentityId string
+
 module vmssDeployments './linux.bicep' = [for vmssName in vmssNames: {
   name: '${deploymentNamePrefix}-${vmssName}'
   params: {
@@ -45,6 +47,7 @@ module vmssDeployments './linux.bicep' = [for vmssName in vmssNames: {
     vmsssku: vmssSku
     location: location
     extensionName: '${extensionNamePrefix}-${vmssName}'
+    aksClusterKubeletIdentityId: '${aksClusterKubeletIdentityId}'
   }
 }]
 
