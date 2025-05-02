@@ -234,8 +234,6 @@ LABEL_SELECTOR="app=dnc"  # Replace with the label selector for the DNC pod
 LOCAL_PORT=9000  # Local port to forward
 REMOTE_PORT=9000  # Pod's port to forward
 
-# DNC_POD="dnc-7f75b67795-cpc5b" # TODO: make it from az command
-
 # Start port forwarding
 echo "Starting port forwarding from localhost:$LOCAL_PORT to $DNC_POD:$REMOTE_PORT..."
 kubectl port-forward -n "$NAMESPACE" pod/"$DNC_POD" "$LOCAL_PORT:$REMOTE_PORT" & PORT_FORWARD_PID=$!
@@ -757,7 +755,7 @@ echo "All NCs registered and verified successfully!"
 ############################ Deploy Pods ###########################
 # Define an array of pods with their details
 PODS=(
-  "container1-pod|container1.yaml|cx=vm1"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR TODO: Make it come from inputs
+  "container1-pod|container1.yaml|cx=vm1"  # Format: POD_NAME|POD_YAML|LABEL_SELECTOR|NODE_NAME TODO: Make it come from inputs
   "container2-pod|container2.yaml|cx=vm2"
 )
 
