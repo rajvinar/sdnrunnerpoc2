@@ -493,6 +493,7 @@ resource preDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' 
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cns_configmap.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_deployment.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cns_daemonset.yaml'
+      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/bootstrap-role.yaml'
     ]
   }
   // tags: {
