@@ -797,7 +797,7 @@ deploy_pod() {
   echo "Pod $POD_NAME deployed"
 }
 
-# sleep 3mins to wait for nodes to be ready
+# try sleep 3mins to wait for nodes to be ready
 sleep 240
 # Main script logic
 echo "Starting orchestration..."
