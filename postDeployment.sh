@@ -19,7 +19,7 @@ usage() {
 }
 
 # Parse command-line arguments
-while getopts "g:c:b:p:v:s:u:t:V:m:d:" opt; do
+while getopts "g:c:b:p:v:s:u:t:W:D:V:m:d:" opt; do
     case "$opt" in
         g) RESOURCE_GROUP="$OPTARG" ;;
         c) CLUSTER_NAME="$OPTARG" ;;
@@ -31,8 +31,8 @@ while getopts "g:c:b:p:v:s:u:t:V:m:d:" opt; do
         t) SAL_TOKENS="$OPTARG" ;;
         # w) WORKER_NODES_INPUT="$OPTARG" ;;
         # d) DNC_NODES_INPUT="$OPTARG" ;;
-        # W) WORKER_VMSSES_INPUT="$OPTARG" ;;
-        # D) DNC_VMSSES_INPUT="$OPTARG" ;;
+        W) WORKER_VMSSES_INPUT="$OPTARG" ;;
+        D) DNC_VMSSES_INPUT="$OPTARG" ;;
         V) CUSTOMER_VNET_ID="$OPTARG" ;;
         # S) CUSTOMER_SUBNET_NAMES_INPUT="$OPTARG" ;; 
         # P) PODS_INPUT="$OPTARG" ;;
@@ -81,12 +81,12 @@ fi
 # if [[ -z "${DNC_NODES_INPUT:-}" ]]; then
 #     missing_params+=("-d <dnc-nodes>")
 # fi
-# if [[ -z "${WORKER_VMSSES_INPUT:-}" ]]; then
-#     missing_params+=("-W <worker-vmsses>")
-# fi
-# if [[ -z "${DNC_VMSSES_INPUT:-}" ]]; then
-#     missing_params+=("-D <dnc-vmsses>")
-# fi
+if [[ -z "${WORKER_VMSSES_INPUT:-}" ]]; then
+    missing_params+=("-W <worker-vmsses>")
+fi
+if [[ -z "${DNC_VMSSES_INPUT:-}" ]]; then
+    missing_params+=("-D <dnc-vmsses>")
+fi
 if [[ -z "${CUSTOMER_VNET_ID:-}" ]]; then
     missing_params+=("-V <customer-vnet-id>")
 fi
@@ -120,8 +120,8 @@ fi
 # Convert comma-separated inputs into arrays
 # IFS=',' read -r -a WORKER_NODES <<< "$WORKER_NODES_INPUT"
 # IFS=',' read -r -a DNC_NODES <<< "$DNC_NODES_INPUT"
-# IFS=',' read -r -a WORKER_VMSSES <<< "$WORKER_VMSSES_INPUT"
-# IFS=',' read -r -a DNC_VMSSES <<< "$DNC_VMSSES_INPUT"
+IFS=',' read -r -a WORKER_VMSSES <<< "$WORKER_VMSSES_INPUT"
+IFS=',' read -r -a DNC_VMSSES <<< "$DNC_VMSSES_INPUT"
 # IFS=',' read -r -a PODS <<< "$PODS_INPUT"
 # IFS=',' read -r -a NC_NODES <<< "$NC_NODES_INPUT"
 # IFS=',' read -r -a NODES <<< "$NODES_INPUT"  # Convert nodes input into an array
@@ -179,11 +179,60 @@ apk add --no-cache jq
 apk add --no-cache gettext
 
 
+WORKER_NODES=()
+# Get instances/nodes in each VMSS
+echo "Retrieving worker instances/nodes..."
+for VMSS in "${WORKER_VMSSES[@]}"; do
+  echo "Fetching nodes for VMSS: $VMSS in resource group: $RESOURCE_GROUP"
+  
+  # Get the list of nodes in the VMSS
+  NODES=$(az vmss list-instances --resource-group "$RESOURCE_GROUP" --name "$VMSS" --query "[].osProfile.computerName" -o tsv)
+  
+  if [[ -z "$NODES" ]]; then
+    echo "No nodes found for VMSS: $VMSS"
+    continue
+  fi
+
+  echo "Nodes in VMSS $VMSS:"
+  for NODE in $NODES; do
+    echo "  - $NODE"
+  done
+
+  WORKER_NODES+=("${NODES[@]}")
+done
+echo "${WORKER_NODES[@]}"
+
+
+DNC_NODES=()
+# Get instances/nodes in each VMSS
+echo "Retrieving worker instances/nodes..."
+for VMSS in "${DNC_VMSSESs[@]}"; do
+  echo "Fetching nodes for VMSS: $VMSS in resource group: $RESOURCE_GROUP"
+  
+  # Get the list of nodes in the VMSS
+  NODES=$(az vmss list-instances --resource-group "$RESOURCE_GROUP" --name "$VMSS" --query "[].osProfile.computerName" -o tsv)
+  
+  if [[ -z "$NODES" ]]; then
+    echo "No nodes found for VMSS: $VMSS"
+    continue
+  fi
+
+  echo "Nodes in VMSS $VMSS:"
+  for NODE in $NODES; do
+    echo "  - $NODE"
+  done
+
+  # Optionally, store the nodes in an associative array or process them further
+  # Example: Add nodes to a global array for later use
+  DNC_NODES+=("${NODES[@]}")
+done
+echo "${DNC_NODES[@]}"
+
 
 
 # Label the worker nodes and deploy the cns ConfigMap and DaemonSet
 echo "Labeling worker nodes..."
-WORKER_NODES=("linuxpool120000000" "linuxpool21000000") # TODO : make it come from inpu
+# WORKER_NODES=("linuxpool120000000" "linuxpool21000000") # TODO : make it come from inpu
 # Label key and value
 LABEL_KEY="kubernetes.azure.com/mode"
 LABEL_VALUE="user"
@@ -205,7 +254,7 @@ echo "Deploying azure_cns_daemonset.yaml to namespace default..."
 kubectl apply -f azure_cns_daemonset.yaml -n default
 
 # Label the dnc nodes and deploy the dnc ConfigMap and Deployment
-DNC_NODES=("dncpool20000000") # TODO : make it come from inputs
+# DNC_NODES=("dncpool20000000") # TODO : make it come from inputs
 echo "Labeling dnc node..."
 kubectl label node ${DNC_NODES[0]} node-type=dnc
 
@@ -476,10 +525,11 @@ done
 #   "linuxpool161000000|10.224.0.78"
 # )
 
-NODES=(
-  "linuxpool20000000"
-  "linuxpool21000000"
-)
+# NODES=(
+#   "linuxpool20000000"
+#   "linuxpool21000000"
+# )
+NODES=$WORKER_NODES
 # Initialize an empty array to store the formatted NODES
 FORMATTED_NODES=()
 
@@ -749,9 +799,22 @@ echo "All NCs registered and verified successfully!"
 ############################ Deploy Pods ###########################
 # Define an array of pods with their details
 PODS=(
-  "container1-pod|linuxpool20000000|container1.yaml|cx=vm1"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR TODO: Make it come from inputs
-  "container2-pod|linuxpool21000000|container2.yaml|cx=vm2"
+  "container1-pod|container1.yaml|cx=vm1"  # Format: POD_NAME|NODE_NAME|POD_YAML|LABEL_SELECTOR TODO: Make it come from inputs
+  "container2-pod|container2.yaml|cx=vm2"
 )
+
+# Loop over the PODS array
+for i in "${!PODS[@]}"; do
+  # Append WORKER_NODES to the current POD entry
+  PODS[i]="${PODS[i]}|${WORKER_NODES[i]}"
+done
+
+# Print the updated PODS array
+echo "Updated PODS array:"
+for pod in "${PODS[@]}"; do
+  echo "$pod"
+done
+
 
 NAMESPACE="default"  # Replace with the namespace of the DNC deployment
 POD_HEALTH_CHECK_RETRY_COUNT=10  # Number of retry attempts
@@ -784,7 +847,7 @@ echo "Starting orchestration..."
 PRIVATE_IPS=()
 # Iterate over the pods and deploy each one
 for pod in "${PODS[@]}"; do
-  IFS="|" read -r POD_NAME NODE_NAME POD_YAML LABEL_SELECTOR <<< "$pod"
+  IFS="|" read -r POD_NAME POD_YAML LABEL_SELECTOR NODE_NAME <<< "$pod"
 
   # Deploy the pod
   deploy_pod "$POD_NAME" "$NODE_NAME" "$POD_YAML" "$LABEL_SELECTOR"
