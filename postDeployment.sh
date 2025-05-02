@@ -19,28 +19,17 @@ usage() {
 }
 
 # Parse command-line arguments
-while getopts "g:c:b:p:v:s:u:t:W:D:V:N:m:d:" opt; do
+while getopts "g:c:v:u:t:W:D:V:N:d:" opt; do
     case "$opt" in
         g) RESOURCE_GROUP="$OPTARG" ;;
         c) CLUSTER_NAME="$OPTARG" ;;
-        b) BICEP_TEMPLATE_PATH="$OPTARG" ;;
-        p) ADMIN_PASSWORD="$OPTARG" ;;
         v) INFRA_VNET_NAME="$OPTARG" ;;
-        s) INFRA_SUBNET_NAME="$OPTARG" ;;
         u) SUBSCRIPTION_ID="$OPTARG" ;;
         t) SAL_TOKENS="$OPTARG" ;;
-        # w) WORKER_NODES_INPUT="$OPTARG" ;;
-        # d) DNC_NODES_INPUT="$OPTARG" ;;
         W) WORKER_VMSSES_INPUT="$OPTARG" ;;
         D) DNC_VMSSES_INPUT="$OPTARG" ;;
         V) CUSTOMER_VNET_ID="$OPTARG" ;;
         N) CUSTOMER_VNET_NAME="$OPTARG" ;;
-        # S) CUSTOMER_SUBNET_NAMES_INPUT="$OPTARG" ;; 
-        # P) PODS_INPUT="$OPTARG" ;;
-        # N) DNC_POD_NAME="$OPTARG" ;;
-        # n) NC_NODES_INPUT="$OPTARG" ;;
-        # o) NODES_INPUT="$OPTARG" ;;
-        m) AKS_KUBERNETES_SERVICE_MANAGED_IDENTITY_CLIENT_ID="$OPTARG" ;; 
         d) DB_NAME="$OPTARG" ;; 
         *) usage ;;
     esac
@@ -55,17 +44,8 @@ fi
 if [[ -z "${CLUSTER_NAME:-}" ]]; then
     missing_params+=("-c <cluster-name>")
 fi
-if [[ -z "${BICEP_TEMPLATE_PATH:-}" ]]; then
-    missing_params+=("-b <bicep-template-path>")
-fi
-if [[ -z "${ADMIN_PASSWORD:-}" ]]; then
-    missing_params+=("-p <admin-password>")
-fi
 if [[ -z "${INFRA_VNET_NAME:-}" ]]; then
     missing_params+=("-v <infra-vnet-name>")
-fi
-if [[ -z "${INFRA_SUBNET_NAME:-}" ]]; then
-    missing_params+=("-s <infra-subnet-name>")
 fi
 if [[ -z "${SUBSCRIPTION_ID:-}" ]]; then
     missing_params+=("-u <subscription-id>")
@@ -76,12 +56,6 @@ fi
 if [[ -z "${DB_NAME:-}" ]]; then
     missing_params+=("-d <db-name>")
 fi
-# if [[ -z "${WORKER_NODES_INPUT:-}" ]]; then
-#     missing_params+=("-w <worker-nodes>")
-# fi
-# if [[ -z "${DNC_NODES_INPUT:-}" ]]; then
-#     missing_params+=("-d <dnc-nodes>")
-# fi
 if [[ -z "${WORKER_VMSSES_INPUT:-}" ]]; then
     missing_params+=("-W <worker-vmsses>")
 fi
@@ -94,24 +68,6 @@ fi
 if [[ -z "${CUSTOMER_VNET_NAME:-}" ]]; then
     missing_params+=("-N <customer-vnet-name>")
 fi
-# if [[ -z "${CUSTOMER_SUBNET_NAMES_INPUT:-}" ]]; then
-#     missing_params+=("-S <customer-subnet-names>")
-# fi
-# if [[ -z "${PODS_INPUT:-}" ]]; then
-#     missing_params+=("-P <pods>")
-# fi
-# if [[ -z "${DNC_POD_NAME:-}" ]]; then
-#     missing_params+=("-N <dnc-pod-name>")
-# fi
-# if [[ -z "${NC_NODES_INPUT:-}" ]]; then
-#     missing_params+=("-n <nc-nodes>")
-# fi
-# if [[ -z "${NODES_INPUT:-}" ]]; then
-#     missing_params+=("-n <nodes>")
-# fi
-if [[ -z "${AKS_KUBERNETES_SERVICE_MANAGED_IDENTITY_CLIENT_ID:-}" ]]; then
-    missing_params+=("-m <managed-identity-client-id>")
-fi
 
 if [[ ${#missing_params[@]} -gt 0 ]]; then
     echo "Error: Missing required parameters:"
@@ -122,14 +78,8 @@ if [[ ${#missing_params[@]} -gt 0 ]]; then
 fi
 
 # Convert comma-separated inputs into arrays
-# IFS=',' read -r -a WORKER_NODES <<< "$WORKER_NODES_INPUT"
-# IFS=',' read -r -a DNC_NODES <<< "$DNC_NODES_INPUT"
 IFS=',' read -r -a WORKER_VMSSES <<< "$WORKER_VMSSES_INPUT"
 IFS=',' read -r -a DNC_VMSSES <<< "$DNC_VMSSES_INPUT"
-# IFS=',' read -r -a PODS <<< "$PODS_INPUT"
-# IFS=',' read -r -a NC_NODES <<< "$NC_NODES_INPUT"
-# IFS=',' read -r -a NODES <<< "$NODES_INPUT"  # Convert nodes input into an array
-# IFS=',' read -r -a CUSTOMER_SUBNET_NAMES <<< "$CUSTOMER_SUBNET_NAMES_INPUT"
 
 az account set -s $SUBSCRIPTION_ID
 
@@ -548,7 +498,7 @@ done
 
 # Update the NODES array with the formatted values
 NODES=("${FORMATTED_NODES[@]}")
-
+echo "Formatted NODES array: $NODES"
 
 DNC_ENDPOINT=$DNC_URL  # Replace with the actual DNC endpoint
 JSON_CONTENT_TYPE="application/json"

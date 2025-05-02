@@ -474,8 +474,6 @@ resource preDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' 
   dependsOn: [
     cluster
     testResourcesModule
-    // aksRoleAssignment
-    // containerRoleAssignment
   ]
   properties: {
     azCliVersion: '2.60.0'
@@ -483,24 +481,9 @@ resource preDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' 
     retentionInterval: 'PT2H'
     cleanupPreference: 'OnExpiration'
     timeout: 'PT20M'
-    // timeout: 'PT20M'
-    // scriptContent: 'echo "abc..."'
     primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/preDeployment.sh'
-    arguments: '-g ${rg} -c ${clusterName} -b linux.bicep -p 123aA! -u 9b8218f9-902a-4d20-a65c-e98acec5362f -v ${infraVnetName} -s ${infraSubnetName} -t "${ds.properties.outputs.salToken}|${ds.properties.outputs.salToken1}" -V ${customerVnet.properties.resourceGuid}  -m ${aksClusterKubeletIdentity.id} -d ${cosmosdbName}'
-    //primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/test.sh'
-    //arguments: '-a ${ds.properties.outputs.salToken}'
+    arguments: '-g ${rg} -c ${clusterName} -u ${subscriptionId}'
     supportingScriptUris: [
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/linux.bicep'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/provisionscript.bicep'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/clouds.bicep'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/cacert.sh'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/config.sh'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/containerd.sh'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/delayext-and-waitdnsready.sh'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/kubelet-msi.sh'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/kubelet.sh'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/provisionscript-manual/provisionscript.ps1'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/bootstrap-role.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/Chart.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/values.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/cni-plugins-installer.yaml'
@@ -510,14 +493,6 @@ resource preDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' 
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cns_configmap.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_deployment.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cns_daemonset.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/host_daemonset.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/goldpinger_pod.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_configmap.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/test.sh'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_configmap_pubsubproxy.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/container1.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/container2.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/roleAssignmentsInSub.bicep'
     ]
   }
   // tags: {
@@ -572,8 +547,6 @@ resource postDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01'
     testResourcesModule
     workerVmssCreation
     dncVmssCreation
-    // aksRoleAssignment
-    // containerRoleAssignment
   ]
   properties: {
     azCliVersion: '2.60.0'
@@ -581,24 +554,9 @@ resource postDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01'
     retentionInterval: 'PT2H'
     cleanupPreference: 'OnExpiration'
     timeout: 'PT30M'
-    // timeout: 'PT20M'
-    // scriptContent: 'echo "abc..."'
     primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/postDeployment.sh'
-    arguments: '-g ${rg} -c ${clusterName} -b linux.bicep -p 123aA! -u 9b8218f9-902a-4d20-a65c-e98acec5362f -v ${infraVnetName} -s ${infraSubnetName} -t "${ds.properties.outputs.salToken}|${ds.properties.outputs.salToken1}" -V ${customerVnet.properties.resourceGuid}  -m ${aksClusterKubeletIdentity.id} -d ${cosmosdbName} -W ${join(workerVMSSNames, ',')} -D ${join(dncVMSSNames, ',')} -N ${customerVnetName}'
-    //primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/test.sh'
-    //arguments: '-a ${ds.properties.outputs.salToken}'
+    arguments: '-g ${rg} -c ${clusterName} -u ${subscriptionId} -v ${infraVnetName} -t "${ds.properties.outputs.salToken}|${ds.properties.outputs.salToken1}" -V ${customerVnet.properties.resourceGuid} -d ${cosmosdbName} -W ${join(workerVMSSNames, ',')} -D ${join(dncVMSSNames, ',')} -N ${customerVnetName}'
     supportingScriptUris: [
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/linux.bicep'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/provisionscript.bicep'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/clouds.bicep'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/cacert.sh'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/config.sh'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/containerd.sh'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/delayext-and-waitdnsready.sh'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/kubelet-msi.sh'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/common/kubelet.sh'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/scripts/provisionscript-manual/provisionscript.ps1'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/bootstrap-role.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/Chart.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/values.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/cni-plugins-installer.yaml'
@@ -657,38 +615,6 @@ resource dsGc 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   }
 }
 
-
-// resource testDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
-//   name: 'test-${uniqueString(resourceGroup().name)}'
-//   kind: 'AzureCLI'
-//   identity: {
-//     type: 'UserAssigned'
-//     userAssignedIdentities: {
-//       '${userAssignedIdentity.id}': {}
-//     }
-//   }
-//   location: region
-//   dependsOn: [
-  
-//     // cluster
-//     // aksRoleAssignment
-//     // containerRoleAssignment
-//   ]
-//   properties: {
-//     azCliVersion: '2.60.0'
-//     forceUpdateTag: randomGuid
-//     retentionInterval: 'PT2H'
-//     cleanupPreference: 'OnExpiration'
-//     timeout: 'PT20M'
-//     scriptContent: '''
-//       #!/bin/bash
-//       echo "FQDN1: $1"
-//       echo "FQDN2: $2"
-//       echo "Private IPs: $3"
-//     '''
-//     arguments: ' ${testResourcesModule.outputs.fqdn1} ${testResourcesModule.outputs.fqdn2} ${postDeploymentScript.properties.outputs.privateIPs}'
-//   }
-// }
 
 
 
