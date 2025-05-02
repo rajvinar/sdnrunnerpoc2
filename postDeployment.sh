@@ -206,7 +206,7 @@ echo "${WORKER_NODES[@]}"
 DNC_NODES=()
 # Get instances/nodes in each VMSS
 echo "Retrieving worker instances/nodes..."
-for VMSS in "${DNC_VMSSESs[@]}"; do
+for VMSS in "${DNC_VMSSES[@]}"; do
   echo "Fetching nodes for VMSS: $VMSS in resource group: $RESOURCE_GROUP"
   
   # Get the list of nodes in the VMSS
@@ -862,8 +862,29 @@ for pod in "${PODS[@]}"; do
   PRIVATE_IPS+=("$POD_NAME|$PRIVATE_IP")
 done
 
-echo "{\"privateIPs\": $(printf '%s\n' "${PRIVATE_IPS[@]}" | jq -R . | jq -s .)}" > $AZ_SCRIPTS_OUTPUT_PATH
-# echo "All pods deployed and verified successfully."
+SUBNET_IDS=$(az network vnet show --ids "$CUSTOMER_VNET_ID" --query "subnets[].id" -o tsv)
+
+# Check if any subnets were found
+if [[ -z "$SUBNET_IDS" ]]; then
+  echo "No subnets found in VNet: $CUSTOMER_VNET_ID"
+  exit 1
+fi
+
+# Print the subnet resource IDs
+echo "Subnet Resource IDs in VNet $CUSTOMER_VNET_ID:"
+echo "$SUBNET_IDS"
+
+
+echo "Generating output with private IPs and subnet IDs..."
+
+# Convert PRIVATE_IPS array to JSON
+PRIVATE_IPS_JSON=$(printf '%s\n' "${PRIVATE_IPS[@]}" | jq -R . | jq -s .)
+
+# Get the subnet IDs from the VNet
+SUBNET_IDS=$(az network vnet show --ids "$CUSTOMER_VNET_ID" --query "subnets[].id" -o json)
+
+# Combine both into a single JSON object and write to the output path
+echo "{\"privateIPs\": $PRIVATE_IPS_JSON, \"subnetIDs\": $SUBNET_IDS}" > $AZ_SCRIPTS_OUTPUT_PATH
 
 
 ############ Stop port forwarding after the operation #############

@@ -526,6 +526,8 @@ resource preDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' 
 }
 
 
+
+
 module dncVmssCreation 'vmssCreation.bicep' = {
   name: 'vmssCreationModule'
   params: {
@@ -622,42 +624,14 @@ resource postDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01'
 }
 
 
-// output privateIPs array = helmScript.properties.outputs.privateIPs
-
-// // Cleanup script
-// resource dsGc 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
-//   #disable-next-line use-stable-resource-identifiers
-//   name: 'ds-gc-${uniqueString(resourceGroup().name)}' 
-//   kind: 'AzureCLI'
-//   identity: {
-//     type: 'UserAssigned'
-//     userAssignedIdentities: {
-//       '${userAssignedIdentity.id}': {}
-//     }
-//   }
-//   dependsOn: [
-//     ds
-//     storageContributor
-//   ]
-//   location: region
-//   properties: {
-//     azCliVersion: '2.69.0'
-//     forceUpdateTag: randomGuid
-//     retentionInterval: 'PT2H'
-//     cleanupPreference: 'Always'
-//     timeout: 'PT20M'
-//     scriptContent: concat(
-//       'az account set -s ${subscriptionId};',
-//       'az storage account delete --name ${dsStorage.name} -y;'
-//     )
-//   }
-// }
+output privateIPs array = postDeploymentScript.properties.outputs.privateIPs
+output subnetIds array = postDeploymentScript.properties.outputs.subnetIDs
 
 
-// output instanceNames array = helmScript.properties.outputs.instanceNames
-
-resource testDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
-  name: 'test-${uniqueString(resourceGroup().name)}'
+// Cleanup script
+resource dsGc 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
+  #disable-next-line use-stable-resource-identifiers
+  name: 'ds-gc-${uniqueString(resourceGroup().name)}' 
   kind: 'AzureCLI'
   identity: {
     type: 'UserAssigned'
@@ -665,28 +639,56 @@ resource testDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01'
       '${userAssignedIdentity.id}': {}
     }
   }
-  location: region
   dependsOn: [
-  
-    // cluster
-    // aksRoleAssignment
-    // containerRoleAssignment
+    ds
+    storageContributor
   ]
+  location: region
   properties: {
-    azCliVersion: '2.60.0'
+    azCliVersion: '2.69.0'
     forceUpdateTag: randomGuid
     retentionInterval: 'PT2H'
-    cleanupPreference: 'OnExpiration'
+    cleanupPreference: 'Always'
     timeout: 'PT20M'
-    scriptContent: '''
-      #!/bin/bash
-      echo "FQDN1: $1"
-      echo "FQDN2: $2"
-      echo "Private IPs: $3"
-    '''
-    arguments: ' ${testResourcesModule.outputs.fqdn1} ${testResourcesModule.outputs.fqdn2} ${postDeploymentScript.properties.outputs.privateIPs}'
+    scriptContent: concat(
+      'az account set -s ${subscriptionId};',
+      'az storage account delete --name ${dsStorage.name} -y;'
+    )
   }
 }
+
+
+// resource testDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+//   name: 'test-${uniqueString(resourceGroup().name)}'
+//   kind: 'AzureCLI'
+//   identity: {
+//     type: 'UserAssigned'
+//     userAssignedIdentities: {
+//       '${userAssignedIdentity.id}': {}
+//     }
+//   }
+//   location: region
+//   dependsOn: [
+  
+//     // cluster
+//     // aksRoleAssignment
+//     // containerRoleAssignment
+//   ]
+//   properties: {
+//     azCliVersion: '2.60.0'
+//     forceUpdateTag: randomGuid
+//     retentionInterval: 'PT2H'
+//     cleanupPreference: 'OnExpiration'
+//     timeout: 'PT20M'
+//     scriptContent: '''
+//       #!/bin/bash
+//       echo "FQDN1: $1"
+//       echo "FQDN2: $2"
+//       echo "Private IPs: $3"
+//     '''
+//     arguments: ' ${testResourcesModule.outputs.fqdn1} ${testResourcesModule.outputs.fqdn2} ${postDeploymentScript.properties.outputs.privateIPs}'
+//   }
+// }
 
 
 
