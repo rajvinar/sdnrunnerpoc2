@@ -15,11 +15,23 @@ param aciSubnetName string = 'aci-subnet'
 param customerVnetName string = 'customerVnet'
 param delegatedSubnetName string = 'delegatedSubnet'
 param delegatedSubnet1Name string = 'delegatedSubnet1'
+param dncVMSSNames array = ['dncpool20']
+param workerVMSSNames array = ['linuxpool20', 'linuxpool21']
+
+
+
+
+// TODO: will be different in ame need to check pr
 param subnetDelegatorEnvironment string = 'env-westus-u3h4j'
 param subnetDelegatorName string = 'subnetdelegator-westus-u3h4j'
 param subnetDelegatorRg string = 'subnetdelegator-westus'
-param dncVMSSNames array = ['dncpool20']
-param workerVMSSNames array = ['linuxpool20', 'linuxpool21']
+param subnetDelegatorSubscriptionId string = 'b2f3c0a1-4d5e-4b8e-9f7c-6d5a0f1b2c3d'
+////////////////
+param msiRg string = 'RunnersIdentities'
+
+
+
+
 
 var dataActions = [
   'Microsoft.DocumentDB/databaseAccounts/readMetadata'
@@ -72,14 +84,16 @@ module roleAssignments './roleAssignmentsInSub.bicep' = {
   }
 }
 
+
+
 resource subnetDelegator 'Microsoft.App/containerApps@2024-10-02-preview' existing = {
   name: subnetDelegatorName
-  scope: resourceGroup(subnetDelegatorRg)
+  scope: resourceGroup(subnetDelegatorSubscriptionId, subnetDelegatorRg)
 }
 
 resource subnetDelegatorAcaEnv 'Microsoft.App/managedEnvironments@2024-10-02-preview' existing = {
   name: subnetDelegatorEnvironment
-  scope: resourceGroup(subnetDelegatorRg)
+  scope: resourceGroup(subnetDelegatorSubscriptionId, subnetDelegatorRg)
 }
 
 resource ip 'Microsoft.Network/publicIPAddresses@2023-11-01' = {
@@ -132,7 +146,6 @@ resource outboundIp 'Microsoft.Network/publicIPAddresses@2023-11-01' = {
     publicIPAllocationMethod: 'Static'
   }
 }
-
 resource infraVnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   name: infraVnetName
   location: region
@@ -196,7 +209,6 @@ resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' ={
     }
   }
 }
-
 
 resource customerVnet 'Microsoft.Network/virtualNetworks@2021-08-01' = {
   name: 'customerVnet'
@@ -443,10 +455,10 @@ resource ds 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
     cleanupPreference: 'OnExpiration'
     timeout: 'PT20M'
     scriptContent: concat(
-      'curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/VirtualNetwork/%2Fsubscriptions%2F${subscriptionId}%2FresourceGroups%2F${rg}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${infraVnetName};',
-      'resp=$(curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/DelegatedSubnet/%2Fsubscriptions%2F${subscriptionId}%2FresourceGroups%2F${rg}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${customerVnetName}%2Fsubnets%2F${delegatedSubnetName});',
+      'curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/VirtualNetwork/%2Fsubscriptions%2F${subscription().subscriptionId}%2FresourceGroups%2F${resourceGroup().name}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${infraVnetName};',
+      'resp=$(curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/DelegatedSubnet/%2Fsubscriptions%2F${subscription().subscriptionId}%2FresourceGroups%2F${resourceGroup().name}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${customerVnetName}%2Fsubnets%2F${delegatedSubnetName});',
       'token=$(echo "$resp" | grep -oP \'(?<=\\{).*?(?=\\})\' | sed -n \'s/.*"primaryToken":"\\([^"]*\\)".*/\\1/p\');',
-      'resp1=$(curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/DelegatedSubnet/%2Fsubscriptions%2F${subscriptionId}%2FresourceGroups%2F${rg}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${customerVnetName}%2Fsubnets%2F${delegatedSubnet1Name});',
+      'resp1=$(curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/DelegatedSubnet/%2Fsubscriptions%2F${subscription().subscriptionId}%2FresourceGroups%2F${resourceGroup().name}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${customerVnetName}%2Fsubnets%2F${delegatedSubnet1Name});',
       'token1=$(echo "$resp1" | grep -oP \'(?<=\\{).*?(?=\\})\' | sed -n \'s/.*"primaryToken":"\\([^"]*\\)".*/\\1/p\');',
       'echo "{\\"salToken\\":\\"$token\\",\\"salToken1\\":\\"$token1\\"}" > $AZ_SCRIPTS_OUTPUT_PATH;',
       'cat $AZ_SCRIPTS_OUTPUT_PATH;'
@@ -460,9 +472,9 @@ output salToken string = ds.properties.outputs.salToken
 output salToken1 string = ds.properties.outputs.salToken1
 
 // Execute script
-resource preDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+resource aksBYNOScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   #disable-next-line use-stable-resource-identifiers
-  name: 'preDeploymentScript' 
+  name: 'aksBYONScript' 
   kind: 'AzureCLI'
   identity: {
     type: 'UserAssigned'
@@ -513,7 +525,7 @@ module dncVmssCreation 'vmssCreation.bicep' = {
     vmssNames: dncVMSSNames
     aksClusterKubeletIdentityId: aksClusterKubeletIdentity.id
   }
-  dependsOn: [preDeploymentScript]
+  dependsOn: [aksBYNOScript]
 }
 
 output dncVMSSLogs array = dncVmssCreation.outputs.vmssDeploymentLogs
@@ -527,14 +539,14 @@ module workerVmssCreation 'vmssCreation.bicep' = {
     vmssNames: workerVMSSNames
     aksClusterKubeletIdentityId: aksClusterKubeletIdentity.id
   }
-  dependsOn: [preDeploymentScript]
+  dependsOn: [aksBYNOScript]
 }
 
 output workerVMSSLogs array = workerVmssCreation.outputs.vmssDeploymentLogs
 
-resource postDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
+resource installSwiftScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   #disable-next-line use-stable-resource-identifiers
-  name: 'postDeploymentScript' 
+  name: 'installSwiftScript' 
   kind: 'AzureCLI'
   identity: {
     type: 'UserAssigned'
@@ -583,8 +595,9 @@ resource postDeploymentScript 'Microsoft.Resources/deploymentScripts@2020-10-01'
 }
 
 
-output privateIPs array = postDeploymentScript.properties.outputs.privateIPs
-output subnetIds array = postDeploymentScript.properties.outputs.subnetIDs
+output privateIPs array = installSwiftScript.properties.outputs.privateIPs
+output subnetIds array = installSwiftScript.properties.outputs.subnetIDs
+
 
 
 // Cleanup script
@@ -610,12 +623,11 @@ resource dsGc 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
     cleanupPreference: 'Always'
     timeout: 'PT20M'
     scriptContent: concat(
-      'az account set -s ${subscriptionId};',
+      'az account set -s ${subscription().subscriptionId};',
       'az storage account delete --name ${dsStorage.name} -y;'
     )
   }
 }
-
 
 
 
