@@ -25,7 +25,8 @@ param workerVMSSNames array = ['linuxpool20', 'linuxpool21']
 param subnetDelegatorEnvironment string = 'env-westus-u3h4j'
 param subnetDelegatorName string = 'subnetdelegator-westus-u3h4j'
 param subnetDelegatorRg string = 'subnetdelegator-westus'
-param subnetDelegatorSubscriptionId string = 'b2f3c0a1-4d5e-4b8e-9f7c-6d5a0f1b2c3d'
+// param subnetDelegatorSubscriptionId string = 'b2f3c0a1-4d5e-4b8e-9f7c-6d5a0f1b2c3d'
+param subnetDelegatorSubscriptionId string = '9b8218f9-902a-4d20-a65c-e98acec5362f'
 ////////////////
 param msiRg string = 'RunnersIdentities'
 
@@ -579,8 +580,6 @@ resource installSwiftScript 'Microsoft.Resources/deploymentScripts@2020-10-01' =
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cns_configmap.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_deployment.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cns_daemonset.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/host_daemonset.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/goldpinger_pod.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_configmap.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/test.sh'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_configmap_pubsubproxy.yaml'
