@@ -1,0 +1,2576 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.34.44.8038",
+      "templateHash": "16921392029490417294"
+    }
+  },
+  "parameters": {
+    "clusterName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the cluster"
+      }
+    },
+    "region": {
+      "type": "string",
+      "metadata": {
+        "description": "Region"
+      }
+    },
+    "rg": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource Group"
+      }
+    },
+    "cosmosdbName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the cosmosdb"
+      }
+    },
+    "subscriptionId": {
+      "type": "string",
+      "metadata": {
+        "description": "Subscription ID"
+      }
+    },
+    "infraVnetName": {
+      "type": "string",
+      "defaultValue": "infraVnet"
+    },
+    "infraSubnetName": {
+      "type": "string",
+      "defaultValue": "infraSubnet"
+    },
+    "aciSubnetName": {
+      "type": "string",
+      "defaultValue": "aci-subnet"
+    },
+    "customerVnetName": {
+      "type": "string",
+      "defaultValue": "customerVnet"
+    },
+    "delegatedSubnetName": {
+      "type": "string",
+      "defaultValue": "delegatedSubnet"
+    },
+    "delegatedSubnet1Name": {
+      "type": "string",
+      "defaultValue": "delegatedSubnet1"
+    },
+    "dncVMSSNames": {
+      "type": "array",
+      "defaultValue": [
+        "dncpool20"
+      ]
+    },
+    "workerVMSSNames": {
+      "type": "array",
+      "defaultValue": [
+        "linuxpool20",
+        "linuxpool21"
+      ]
+    },
+    "subnetDelegatorEnvironment": {
+      "type": "string",
+      "defaultValue": "env-eastus2euap-nwwam"
+    },
+    "subnetDelegatorName": {
+      "type": "string",
+      "defaultValue": "subnetdelegator-eastus2euap-nwwa"
+    },
+    "subnetDelegatorRg": {
+      "type": "string",
+      "defaultValue": "subnetdelegator-eastus2euap"
+    },
+    "subnetDelegatorSubscriptionId": {
+      "type": "string",
+      "defaultValue": "0895de50-30a3-4b75-aada-5b23ebd4e8bc"
+    },
+    "msiRg": {
+      "type": "string",
+      "defaultValue": "RunnersIdentities"
+    },
+    "randomGuid": {
+      "type": "string",
+      "defaultValue": "[newGuid()]"
+    }
+  },
+  "variables": {
+    "dataActions": [
+      "Microsoft.DocumentDB/databaseAccounts/readMetadata",
+      "Microsoft.DocumentDB/databaseAccounts/throughputSettings/*",
+      "Microsoft.DocumentDB/databaseAccounts/tables/write",
+      "Microsoft.DocumentDB/databaseAccounts/tables/containers/write",
+      "Microsoft.DocumentDB/databaseAccounts/tables/containers/executeQuery",
+      "Microsoft.DocumentDB/databaseAccounts/tables/containers/executeStoredProcedure",
+      "Microsoft.DocumentDB/databaseAccounts/tables/containers/entities/*"
+    ]
+  },
+  "resources": [
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions",
+      "apiVersion": "2024-12-01-preview",
+      "name": "[format('{0}/{1}', parameters('cosmosdbName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')), 'DncCosmosDbRbacRole'))]",
+      "properties": {
+        "roleName": "DncCosmosDbRbacRole",
+        "type": "CustomRole",
+        "permissions": [
+          {
+            "dataActions": "[variables('dataActions')]"
+          }
+        ],
+        "assignableScopes": [
+          "[format('{0}', resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')))]"
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-07-31-preview",
+      "name": "aksClusterKubeletIdentity",
+      "location": "[parameters('region')]"
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/tableRoleAssignments",
+      "apiVersion": "2024-12-01-preview",
+      "name": "[format('{0}/{1}', parameters('cosmosdbName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')), resourceId('Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions', parameters('cosmosdbName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')), 'DncCosmosDbRbacRole')), 'aksClusterKubeletIdentity', 'roleAssignment'))]",
+      "properties": {
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'aksClusterKubeletIdentity'), '2023-07-31-preview').principalId]",
+        "roleDefinitionId": "[resourceId('Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions', parameters('cosmosdbName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')), 'DncCosmosDbRbacRole'))]",
+        "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName'))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'aksClusterKubeletIdentity')]",
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName'))]",
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions', parameters('cosmosdbName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')), 'DncCosmosDbRbacRole'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2023-11-01",
+      "name": "[format('aciNatGw-ip-{0}', uniqueString(resourceGroup().name))]",
+      "location": "[parameters('region')]",
+      "sku": {
+        "name": "Standard",
+        "tier": "Regional"
+      },
+      "properties": {
+        "ipTags": [
+          {
+            "ipTagType": "FirstPartyUsage",
+            "tag": "/DelegatedNetworkControllerTest"
+          }
+        ],
+        "publicIPAddressVersion": "IPv4",
+        "publicIPAllocationMethod": "Static"
+      }
+    },
+    {
+      "type": "Microsoft.Network/natGateways",
+      "apiVersion": "2024-05-01",
+      "name": "[format('aciNatGw-{0}', uniqueString(resourceGroup().name))]",
+      "location": "[parameters('region')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "properties": {
+        "publicIpAddresses": [
+          {
+            "id": "[resourceId('Microsoft.Network/publicIPAddresses', format('aciNatGw-ip-{0}', uniqueString(resourceGroup().name)))]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', format('aciNatGw-ip-{0}', uniqueString(resourceGroup().name)))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2023-11-01",
+      "name": "[format('serviceTaggedIp-{0}', parameters('clusterName'))]",
+      "location": "[parameters('region')]",
+      "sku": {
+        "name": "Standard",
+        "tier": "Regional"
+      },
+      "properties": {
+        "ipTags": [
+          {
+            "ipTagType": "FirstPartyUsage",
+            "tag": "/DelegatedNetworkControllerTest"
+          }
+        ],
+        "publicIPAddressVersion": "IPv4",
+        "publicIPAllocationMethod": "Static"
+      }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2024-05-01",
+      "name": "[parameters('infraVnetName')]",
+      "location": "[parameters('region')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.224.0.0/12"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[parameters('infraSubnetName')]",
+            "properties": {
+              "addressPrefix": "10.224.0.0/16"
+            }
+          },
+          {
+            "name": "pe-subnet",
+            "properties": {
+              "addressPrefix": "10.225.0.0/24"
+            }
+          },
+          {
+            "name": "[parameters('aciSubnetName')]",
+            "properties": {
+              "addressPrefix": "10.225.1.0/24",
+              "natGateway": {
+                "id": "[resourceId('Microsoft.Network/natGateways', format('aciNatGw-{0}', uniqueString(resourceGroup().name)))]"
+              },
+              "delegations": [
+                {
+                  "name": "aci",
+                  "properties": {
+                    "serviceName": "Microsoft.ContainerInstance/containerGroups"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/natGateways', format('aciNatGw-{0}', uniqueString(resourceGroup().name)))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2024-05-01",
+      "name": "[format('pe-subnetdelegator-{0}', uniqueString(parameters('subnetDelegatorName')))]",
+      "location": "[parameters('region')]",
+      "properties": {
+        "privateLinkServiceConnections": [
+          {
+            "name": "[format('pe-subnetdelegator-{0}-connection', uniqueString(parameters('subnetDelegatorName')))]",
+            "properties": {
+              "privateLinkServiceId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subnetDelegatorSubscriptionId'), parameters('subnetDelegatorRg')), 'Microsoft.App/managedEnvironments', parameters('subnetDelegatorEnvironment'))]",
+              "groupIds": [
+                "managedEnvironments"
+              ]
+            }
+          }
+        ],
+        "subnet": {
+          "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('infraVnetName')), '2024-05-01').subnets[1].id]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', parameters('infraVnetName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2021-08-01",
+      "name": "customerVnet",
+      "location": "[parameters('region')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.0.0.0/16"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[parameters('delegatedSubnetName')]",
+            "properties": {
+              "addressPrefix": "10.0.0.0/24",
+              "delegations": [
+                {
+                  "name": "dnc",
+                  "properties": {
+                    "serviceName": "Microsoft.SubnetDelegator/msfttestclients"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "[parameters('delegatedSubnet1Name')]",
+            "properties": {
+              "addressPrefix": "10.0.1.0/24",
+              "delegations": [
+                {
+                  "name": "dnc1",
+                  "properties": {
+                    "serviceName": "Microsoft.SubnetDelegator/msfttestclients"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.ContainerService/managedClusters",
+      "apiVersion": "2024-02-01",
+      "name": "[parameters('clusterName')]",
+      "location": "[parameters('region')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'aksClusterKubeletIdentity'))]": {}
+        }
+      },
+      "properties": {
+        "aadProfile": {
+          "managed": true,
+          "enableAzureRBAC": true
+        },
+        "agentPoolProfiles": [
+          {
+            "count": 1,
+            "enableAutoScaling": false,
+            "enableEncryptionAtHost": false,
+            "enableNodePublicIP": false,
+            "mode": "System",
+            "name": "dncpool0",
+            "osType": "Linux",
+            "type": "VirtualMachineScaleSets",
+            "vmSize": "Standard_D2_v2",
+            "vnetSubnetID": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('infraVnetName')), '2024-05-01').subnets[0].id]"
+          },
+          {
+            "count": 1,
+            "enableAutoScaling": false,
+            "enableEncryptionAtHost": false,
+            "enableNodePublicIP": false,
+            "mode": "User",
+            "name": "linuxpool0",
+            "nodeLabels": {
+              "nchost": "true"
+            },
+            "osType": "Linux",
+            "type": "VirtualMachineScaleSets",
+            "vmSize": "Standard_D2_v2",
+            "vnetSubnetID": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('infraVnetName')), '2024-05-01').subnets[0].id]"
+          }
+        ],
+        "dnsPrefix": "[parameters('clusterName')]",
+        "identityProfile": {
+          "kubeletidentity": {
+            "resourceId": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'aksClusterKubeletIdentity')]",
+            "clientId": "8134a3dc-ad2c-486b-adeb-a4ff75cb55c5",
+            "objectId": "71c8ae14-0aa4-4962-a1ef-46aff516a9ee"
+          }
+        },
+        "networkProfile": {
+          "loadBalancerProfile": {
+            "outboundIPs": {
+              "publicIPs": [
+                {
+                  "id": "[resourceId('Microsoft.Network/publicIPAddresses', format('serviceTaggedIp-{0}', parameters('clusterName')))]"
+                }
+              ]
+            }
+          },
+          "networkMode": "transparent",
+          "networkPlugin": "azure"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'aksClusterKubeletIdentity')]",
+        "[resourceId('Microsoft.Network/virtualNetworks', parameters('infraVnetName'))]",
+        "[resourceId('Microsoft.Network/publicIPAddresses', format('serviceTaggedIp-{0}', parameters('clusterName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts",
+      "apiVersion": "2022-05-15",
+      "name": "[parameters('cosmosdbName')]",
+      "location": "[parameters('region')]",
+      "kind": "GlobalDocumentDB",
+      "properties": {
+        "enableMultipleWriteLocations": false,
+        "enableAutomaticFailover": false,
+        "databaseAccountOfferType": "Standard",
+        "disableLocalAuth": true,
+        "capabilities": [
+          {
+            "name": "EnableTable"
+          }
+        ],
+        "consistencyPolicy": {
+          "defaultConsistencyLevel": "Session",
+          "maxIntervalInSeconds": 5,
+          "maxStalenessPrefix": 100
+        },
+        "locations": [
+          {
+            "locationName": "[parameters('region')]",
+            "provisioningState": "Succeeded",
+            "failoverPriority": 0,
+            "isZoneRedundant": false
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-07-31-preview",
+      "name": "helm-script-msi3",
+      "location": "[parameters('region')]"
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2022-09-01",
+      "name": "[format('dsstorage{0}', uniqueString(resourceGroup().name))]",
+      "location": "[parameters('region')]",
+      "kind": "StorageV2",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "properties": {
+        "allowBlobPublicAccess": false
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[format('Microsoft.Storage/storageAccounts/{0}', format('dsstorage{0}', uniqueString(resourceGroup().name)))]",
+      "name": "[guid(tenantResourceId('Microsoft.Authorization/roleDefinitions', '69566ab7-960f-475b-8e7c-b3118f30c6bd'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'), resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name))))]",
+      "properties": {
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'), '2023-07-31-preview').principalId]",
+        "roleDefinitionId": "[tenantResourceId('Microsoft.Authorization/roleDefinitions', '69566ab7-960f-475b-8e7c-b3118f30c6bd')]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[format('Microsoft.Storage/storageAccounts/{0}', format('dsstorage{0}', uniqueString(resourceGroup().name)))]",
+      "name": "[guid('17d1049b-9a84-46fb-8f53-869881c3d3ab', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'), resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name))))]",
+      "properties": {
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'), '2023-07-31-preview').principalId]",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '17d1049b-9a84-46fb-8f53-869881c3d3ab')]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2023-08-01",
+      "name": "[format('ds-subnetdelegator-{0}', uniqueString(resourceGroup().name))]",
+      "kind": "AzureCLI",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'))]": {}
+        }
+      },
+      "location": "[parameters('region')]",
+      "properties": {
+        "storageAccountSettings": {
+          "storageAccountName": "[format('dsstorage{0}', uniqueString(resourceGroup().name))]"
+        },
+        "containerSettings": {
+          "subnetIds": [
+            {
+              "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('infraVnetName')), '2024-05-01').subnets[2].id]"
+            }
+          ]
+        },
+        "azCliVersion": "2.69.0",
+        "forceUpdateTag": "[parameters('randomGuid')]",
+        "retentionInterval": "PT2H",
+        "cleanupPreference": "OnExpiration",
+        "timeout": "PT20M",
+        "scriptContent": "[concat(format('curl -X PUT {0}:{1}/VirtualNetwork/%2Fsubscriptions%2F{2}%2FresourceGroups%2F{3}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F{4};', reference(resourceId('Microsoft.Network/privateEndpoints', format('pe-subnetdelegator-{0}', uniqueString(parameters('subnetDelegatorName')))), '2024-05-01').customDnsConfigs[0].ipAddresses[0], reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subnetDelegatorSubscriptionId'), parameters('subnetDelegatorRg')), 'Microsoft.App/containerApps', parameters('subnetDelegatorName')), '2024-10-02-preview').configuration.ingress.exposedPort, subscription().subscriptionId, resourceGroup().name, parameters('infraVnetName')), format('resp=$(curl -X PUT {0}:{1}/DelegatedSubnet/%2Fsubscriptions%2F{2}%2FresourceGroups%2F{3}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F{4}%2Fsubnets%2F{5});', reference(resourceId('Microsoft.Network/privateEndpoints', format('pe-subnetdelegator-{0}', uniqueString(parameters('subnetDelegatorName')))), '2024-05-01').customDnsConfigs[0].ipAddresses[0], reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subnetDelegatorSubscriptionId'), parameters('subnetDelegatorRg')), 'Microsoft.App/containerApps', parameters('subnetDelegatorName')), '2024-10-02-preview').configuration.ingress.exposedPort, subscription().subscriptionId, resourceGroup().name, parameters('customerVnetName'), parameters('delegatedSubnetName')), 'token=$(echo \"$resp\" | grep -oP ''(?<=\\{).*?(?=\\})'' | sed -n ''s/.*\"primaryToken\":\"\\([^\"]*\\)\".*/\\1/p'');', format('resp1=$(curl -X PUT {0}:{1}/DelegatedSubnet/%2Fsubscriptions%2F{2}%2FresourceGroups%2F{3}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F{4}%2Fsubnets%2F{5});', reference(resourceId('Microsoft.Network/privateEndpoints', format('pe-subnetdelegator-{0}', uniqueString(parameters('subnetDelegatorName')))), '2024-05-01').customDnsConfigs[0].ipAddresses[0], reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subnetDelegatorSubscriptionId'), parameters('subnetDelegatorRg')), 'Microsoft.App/containerApps', parameters('subnetDelegatorName')), '2024-10-02-preview').configuration.ingress.exposedPort, subscription().subscriptionId, resourceGroup().name, parameters('customerVnetName'), parameters('delegatedSubnet1Name')), 'token1=$(echo \"$resp1\" | grep -oP ''(?<=\\{).*?(?=\\})'' | sed -n ''s/.*\"primaryToken\":\"\\([^\"]*\\)\".*/\\1/p'');', 'echo \"{\\\"salToken\\\":\\\"$token\\\",\\\"salToken1\\\":\\\"$token1\\\"}\" > $AZ_SCRIPTS_OUTPUT_PATH;', 'cat $AZ_SCRIPTS_OUTPUT_PATH;')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', 'customerVnet')]",
+        "[resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', parameters('infraVnetName'))]",
+        "[resourceId('Microsoft.Network/privateEndpoints', format('pe-subnetdelegator-{0}', uniqueString(parameters('subnetDelegatorName'))))]",
+        "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name))), 'Microsoft.Authorization/roleAssignments', guid(tenantResourceId('Microsoft.Authorization/roleDefinitions', '69566ab7-960f-475b-8e7c-b3118f30c6bd'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'), resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))))]",
+        "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name))), 'Microsoft.Authorization/roleAssignments', guid('17d1049b-9a84-46fb-8f53-869881c3d3ab', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'), resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2020-10-01",
+      "name": "aksBYONScript",
+      "kind": "AzureCLI",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'))]": {}
+        }
+      },
+      "location": "[parameters('region')]",
+      "properties": {
+        "azCliVersion": "2.60.0",
+        "forceUpdateTag": "[parameters('randomGuid')]",
+        "retentionInterval": "PT2H",
+        "cleanupPreference": "OnExpiration",
+        "timeout": "PT20M",
+        "primaryScriptUri": "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/aksBYON.sh",
+        "arguments": "[format('-g {0} -c {1} -u {2}', parameters('rg'), parameters('clusterName'), parameters('subscriptionId'))]",
+        "supportingScriptUris": [
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/Chart.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/values.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/cni-plugins-installer.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/cns-unmanaged-windows.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/cns-unmanaged.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cni_daemonset.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cns_configmap.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_deployment.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cns_daemonset.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/bootstrap-role.yaml"
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerService/managedClusters', parameters('clusterName'))]",
+        "[resourceId('Microsoft.Resources/deployments', 'testResourcesDeployment')]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2020-10-01",
+      "name": "installSwiftScript",
+      "kind": "AzureCLI",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'))]": {}
+        }
+      },
+      "location": "[parameters('region')]",
+      "properties": {
+        "azCliVersion": "2.60.0",
+        "forceUpdateTag": "[parameters('randomGuid')]",
+        "retentionInterval": "PT2H",
+        "cleanupPreference": "OnExpiration",
+        "timeout": "PT30M",
+        "primaryScriptUri": "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/installSwift.sh",
+        "arguments": "[format('-g {0} -c {1} -u {2} -v {3} -t \"{4}|{5}\" -V {6} -d {7} -W {8} -D {9} -N {10}', parameters('rg'), parameters('clusterName'), parameters('subscriptionId'), parameters('infraVnetName'), reference(resourceId('Microsoft.Resources/deploymentScripts', format('ds-subnetdelegator-{0}', uniqueString(resourceGroup().name))), '2023-08-01').outputs.salToken, reference(resourceId('Microsoft.Resources/deploymentScripts', format('ds-subnetdelegator-{0}', uniqueString(resourceGroup().name))), '2023-08-01').outputs.salToken1, reference(resourceId('Microsoft.Network/virtualNetworks', 'customerVnet'), '2021-08-01').resourceGuid, parameters('cosmosdbName'), join(parameters('workerVMSSNames'), ','), join(parameters('dncVMSSNames'), ','), parameters('customerVnetName'))]",
+        "supportingScriptUris": [
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/Chart.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/values.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/cni-plugins-installer.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/cns-unmanaged-windows.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/cns-unmanaged.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cni_daemonset.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cns_configmap.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_deployment.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cns_daemonset.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_configmap.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/test.sh",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_configmap_pubsubproxy.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/container1.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/container2.yaml",
+          "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/roleAssignmentsInSub.bicep"
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerService/managedClusters', parameters('clusterName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', 'customerVnet')]",
+        "[resourceId('Microsoft.Resources/deployments', 'vmssCreationModule')]",
+        "[resourceId('Microsoft.Resources/deploymentScripts', format('ds-subnetdelegator-{0}', uniqueString(resourceGroup().name)))]",
+        "[resourceId('Microsoft.Resources/deployments', 'testResourcesDeployment')]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3')]",
+        "[resourceId('Microsoft.Resources/deployments', 'workerVmssCreationModule')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2023-08-01",
+      "name": "[format('ds-gc-{0}', uniqueString(resourceGroup().name))]",
+      "kind": "AzureCLI",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'))]": {}
+        }
+      },
+      "location": "[parameters('region')]",
+      "properties": {
+        "azCliVersion": "2.69.0",
+        "forceUpdateTag": "[parameters('randomGuid')]",
+        "retentionInterval": "PT2H",
+        "cleanupPreference": "Always",
+        "timeout": "PT20M",
+        "scriptContent": "[concat(format('az account set -s {0};', subscription().subscriptionId), format('az storage account delete --name {0} -y;', format('dsstorage{0}', uniqueString(resourceGroup().name))))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deploymentScripts', format('ds-subnetdelegator-{0}', uniqueString(resourceGroup().name)))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))]",
+        "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name))), 'Microsoft.Authorization/roleAssignments', guid('17d1049b-9a84-46fb-8f53-869881c3d3ab', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'), resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "roleAssignmentsDeployment",
+      "subscriptionId": "[subscription().subscriptionId]",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "principalId": {
+            "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'aksClusterKubeletIdentity'), '2023-07-31-preview').principalId]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.34.44.8038",
+              "templateHash": "9610791426578076249"
+            }
+          },
+          "parameters": {
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "The principal ID of the identity to assign roles to"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'Contributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'KeyVaultAdmin')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '00482a5a-887f-4fb3-b363-3b7fe8e74483')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'KeyVaultCertUser')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'NetworkContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4d97b98b-1d4f-4787-a291-c67834d212e7')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'StorageFileDataPrivilegedContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '69566ab7-960f-475b-8e7c-b3118f30c6bd')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'StorageAccountContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '17d1049b-9a84-46fb-8f53-869881c3d3ab')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'AksRbacAdmin')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3498e952-d568-435e-9b2c-8d77e338d7f7')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'AksClusterAdmin')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0ab0b1a8-8aac-4efd-b8c2-3ee1fb270be8')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'ManagedIdentityOperator')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f1a07417-d97a-45cb-824c-7a7467783830')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'VmContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '9980e02c-c2be-4d73-94e8-173b1dc7cf3c')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'ManagedIdentityContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'e40ec5ca-96e0-45a2-b4ff-59039f2c2b59')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'AksRbacReader')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f6c6a51-bcf8-42ba-9220-52d62157d7db')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'AksContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ed7f3fbd-7b88-4dd4-9017-9adb7ce333f8')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'Reader')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'Owner')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8e3af657-a8ff-443c-a75c-2fe8c4bcb635')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2022-09-01",
+              "name": "[guid('0895de50-30a3-4b75-aada-5b23ebd4e8bc', parameters('principalId'), 'AcrPull')]",
+              "subscriptionId": "0895de50-30a3-4b75-aada-5b23ebd4e8bc",
+              "location": "[deployment().location]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "principalId": {
+                    "value": "[parameters('principalId')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.34.44.8038",
+                      "templateHash": "1725292212116541834"
+                    }
+                  },
+                  "parameters": {
+                    "principalId": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The principal ID of the identity to assign roles to"
+                      }
+                    }
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "name": "[guid(subscription().id, parameters('principalId'), 'AcrPull')]",
+                      "properties": {
+                        "principalId": "[parameters('principalId')]",
+                        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'aksClusterKubeletIdentity')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "roleAssignmentsDeployment1",
+      "subscriptionId": "[subscription().subscriptionId]",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "principalId": {
+            "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'), '2023-07-31-preview').principalId]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.34.44.8038",
+              "templateHash": "9610791426578076249"
+            }
+          },
+          "parameters": {
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "The principal ID of the identity to assign roles to"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'Contributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'KeyVaultAdmin')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '00482a5a-887f-4fb3-b363-3b7fe8e74483')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'KeyVaultCertUser')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'NetworkContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4d97b98b-1d4f-4787-a291-c67834d212e7')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'StorageFileDataPrivilegedContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '69566ab7-960f-475b-8e7c-b3118f30c6bd')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'StorageAccountContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '17d1049b-9a84-46fb-8f53-869881c3d3ab')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'AksRbacAdmin')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3498e952-d568-435e-9b2c-8d77e338d7f7')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'AksClusterAdmin')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0ab0b1a8-8aac-4efd-b8c2-3ee1fb270be8')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'ManagedIdentityOperator')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f1a07417-d97a-45cb-824c-7a7467783830')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'VmContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '9980e02c-c2be-4d73-94e8-173b1dc7cf3c')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'ManagedIdentityContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'e40ec5ca-96e0-45a2-b4ff-59039f2c2b59')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'AksRbacReader')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f6c6a51-bcf8-42ba-9220-52d62157d7db')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'AksContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ed7f3fbd-7b88-4dd4-9017-9adb7ce333f8')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'Reader')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'Owner')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8e3af657-a8ff-443c-a75c-2fe8c4bcb635')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2022-09-01",
+              "name": "[guid('0895de50-30a3-4b75-aada-5b23ebd4e8bc', parameters('principalId'), 'AcrPull')]",
+              "subscriptionId": "0895de50-30a3-4b75-aada-5b23ebd4e8bc",
+              "location": "[deployment().location]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "principalId": {
+                    "value": "[parameters('principalId')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.34.44.8038",
+                      "templateHash": "1725292212116541834"
+                    }
+                  },
+                  "parameters": {
+                    "principalId": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The principal ID of the identity to assign roles to"
+                      }
+                    }
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "name": "[guid(subscription().id, parameters('principalId'), 'AcrPull')]",
+                      "properties": {
+                        "principalId": "[parameters('principalId')]",
+                        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "testResourcesDeployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "region": {
+            "value": "[parameters('region')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.34.44.8038",
+              "templateHash": "5937408481898801129"
+            }
+          },
+          "parameters": {
+            "region": {
+              "type": "string",
+              "metadata": {
+                "description": "The region where the resources will be deployed"
+              }
+            },
+            "ipTag": {
+              "type": "string",
+              "defaultValue": "FirstPartyUsage",
+              "metadata": {
+                "description": "The IP tag type"
+              }
+            },
+            "ipTagValue": {
+              "type": "string",
+              "defaultValue": "/DelegatedNetworkControllerTest",
+              "metadata": {
+                "description": "The IP tag value"
+              }
+            }
+          },
+          "variables": {
+            "containerGroup1": {
+              "publicIPName": "container1PublicIP",
+              "publicIPDNSName": "[format('container1{0}', uniqueString(resourceGroup().id))]"
+            },
+            "containerGroup2": {
+              "publicIPName": "container2PublicIP",
+              "publicIPDNSName": "[format('container2{0}', uniqueString(resourceGroup().id))]"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/publicIPAddresses",
+              "apiVersion": "2020-06-01",
+              "name": "[variables('containerGroup1').publicIPName]",
+              "location": "[parameters('region')]",
+              "sku": {
+                "name": "Standard"
+              },
+              "properties": {
+                "publicIPAllocationMethod": "Static",
+                "dnsSettings": {
+                  "domainNameLabel": "[variables('containerGroup1').publicIPDNSName]"
+                },
+                "ipTags": [
+                  {
+                    "ipTagType": "[parameters('ipTag')]",
+                    "tag": "[parameters('ipTagValue')]"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.Network/publicIPAddresses",
+              "apiVersion": "2020-06-01",
+              "name": "[variables('containerGroup2').publicIPName]",
+              "location": "[parameters('region')]",
+              "sku": {
+                "name": "Standard"
+              },
+              "properties": {
+                "publicIPAllocationMethod": "Static",
+                "dnsSettings": {
+                  "domainNameLabel": "[variables('containerGroup2').publicIPDNSName]"
+                },
+                "ipTags": [
+                  {
+                    "ipTagType": "[parameters('ipTag')]",
+                    "tag": "[parameters('ipTagValue')]"
+                  }
+                ]
+              }
+            }
+          ],
+          "outputs": {
+            "fqdn1": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', variables('containerGroup1').publicIPName), '2020-06-01').dnsSettings.fqdn]"
+            },
+            "fqdn2": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', variables('containerGroup2').publicIPName), '2020-06-01').dnsSettings.fqdn]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "vmssCreationModule",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "vnetResourceGroupName": {
+            "value": "[parameters('rg')]"
+          },
+          "infraVnetName": {
+            "value": "[parameters('infraVnetName')]"
+          },
+          "infraSubnetName": {
+            "value": "[parameters('infraSubnetName')]"
+          },
+          "vmssNames": {
+            "value": "[parameters('dncVMSSNames')]"
+          },
+          "aksClusterKubeletIdentityId": {
+            "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'aksClusterKubeletIdentity')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.34.44.8038",
+              "templateHash": "16575600268455262878"
+            }
+          },
+          "parameters": {
+            "infraVnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the infrastructure VNet"
+              }
+            },
+            "infraSubnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the infrastructure subnet"
+              }
+            },
+            "adminPassword": {
+              "type": "string",
+              "defaultValue": "123aA!",
+              "metadata": {
+                "description": "Admin password for the VMSS"
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Location for the deployment"
+              }
+            },
+            "vmssNames": {
+              "type": "array",
+              "metadata": {
+                "description": "Array of DNC VMSS names"
+              }
+            },
+            "bicepTemplatePath": {
+              "type": "string",
+              "defaultValue": "linux.bicep",
+              "metadata": {
+                "description": "Bicep template path for VMSS deployment"
+              }
+            },
+            "vmssSku": {
+              "type": "string",
+              "defaultValue": "Standard_E8s_v3",
+              "metadata": {
+                "description": "SKU for the VMSS"
+              }
+            },
+            "extensionNamePrefix": {
+              "type": "string",
+              "defaultValue": "NodeJoin",
+              "metadata": {
+                "description": "Extension name prefix for the VMSS"
+              }
+            },
+            "deploymentNamePrefix": {
+              "type": "string",
+              "defaultValue": "vmss-deployment",
+              "metadata": {
+                "description": "Unique deployment name prefix"
+              }
+            },
+            "vnetResourceGroupName": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource group name for the VNet"
+              }
+            },
+            "logFilePath": {
+              "type": "string",
+              "defaultValue": "./",
+              "metadata": {
+                "description": "Log file path for VMSS deployment"
+              }
+            },
+            "enableLogging": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Enable logging for VMSS deployment"
+              }
+            },
+            "aksClusterKubeletIdentityId": {
+              "type": "string"
+            }
+          },
+          "resources": [
+            {
+              "copy": {
+                "name": "vmssDeployments",
+                "count": "[length(parameters('vmssNames'))]"
+              },
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2022-09-01",
+              "name": "[format('{0}-{1}', parameters('deploymentNamePrefix'), parameters('vmssNames')[copyIndex()])]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "vnetname": {
+                    "value": "[parameters('infraVnetName')]"
+                  },
+                  "subnetname": {
+                    "value": "[parameters('infraSubnetName')]"
+                  },
+                  "name": {
+                    "value": "[parameters('vmssNames')[copyIndex()]]"
+                  },
+                  "adminPassword": {
+                    "value": "[parameters('adminPassword')]"
+                  },
+                  "vnetrgname": {
+                    "value": "[parameters('vnetResourceGroupName')]"
+                  },
+                  "vmsssku": {
+                    "value": "[parameters('vmssSku')]"
+                  },
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "extensionName": {
+                    "value": "[format('{0}-{1}', parameters('extensionNamePrefix'), parameters('vmssNames')[copyIndex()])]"
+                  },
+                  "aksClusterKubeletIdentityId": {
+                    "value": "[format('{0}', parameters('aksClusterKubeletIdentityId'))]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.34.44.8038",
+                      "templateHash": "17941968303289412103"
+                    }
+                  },
+                  "parameters": {
+                    "location": {
+                      "type": "string",
+                      "defaultValue": "[resourceGroup().location]"
+                    },
+                    "vmsssku": {
+                      "type": "string",
+                      "defaultValue": "Standard_D8s_v3"
+                    },
+                    "vmsscount": {
+                      "type": "int",
+                      "defaultValue": 1
+                    },
+                    "resourceGroupName": {
+                      "type": "string",
+                      "defaultValue": "[resourceGroup().name]"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "adminUsername": {
+                      "type": "string",
+                      "defaultValue": "azureuser"
+                    },
+                    "adminPassword": {
+                      "type": "securestring"
+                    },
+                    "subscriptionId": {
+                      "type": "string",
+                      "defaultValue": "[subscription().subscriptionId]"
+                    },
+                    "vnetname": {
+                      "type": "string"
+                    },
+                    "vnetrgname": {
+                      "type": "string"
+                    },
+                    "subnetname": {
+                      "type": "string",
+                      "defaultValue": "nodes"
+                    },
+                    "extensionName": {
+                      "type": "string"
+                    },
+                    "aksClusterKubeletIdentityId": {
+                      "type": "string"
+                    },
+                    "securityType": {
+                      "type": "string",
+                      "defaultValue": "TrustedLaunch",
+                      "allowedValues": [
+                        "Standard",
+                        "TrustedLaunch"
+                      ],
+                      "metadata": {
+                        "description": "Security Type of the Virtual Machine."
+                      }
+                    }
+                  },
+                  "variables": {
+                    "copy": [
+                      {
+                        "name": "delegatenics",
+                        "count": "[length(range(0, 3))]",
+                        "input": {
+                          "name": "[format('delegate-nic{0}', range(0, 3)[copyIndex('delegatenics')])]",
+                          "properties": {
+                            "enableAcceleratedNetworking": true,
+                            "ipConfigurations": [
+                              {
+                                "name": "[format('delegate-ip{0}', range(0, 3)[copyIndex('delegatenics')])]",
+                                "properties": {
+                                  "subnet": {
+                                    "id": "[format('{0}/subnets/{1}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subscriptionId'), parameters('vnetrgname')), 'Microsoft.Network/virtualNetworks', parameters('vnetname')), parameters('subnetname'))]"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ],
+                    "securityProfileJson": {
+                      "uefiSettings": {
+                        "secureBootEnabled": true,
+                        "vTpmEnabled": true
+                      },
+                      "securityType": "[parameters('securityType')]"
+                    }
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.Compute/virtualMachineScaleSets",
+                      "apiVersion": "2023-03-01",
+                      "name": "[parameters('name')]",
+                      "location": "[parameters('location')]",
+                      "tags": {
+                        "AzSecPackAutoConfigReady": "true",
+                        "delegate-ip-allocation-for-nics-without-subnet": "true",
+                        "aks-nic-enable-multi-tenancy": "true",
+                        "delegate-ip-allocation-nic-prefix": "delegate",
+                        "fastpathenabled": "true",
+                        "Skip1PGalleryEnforcement": "true"
+                      },
+                      "identity": {
+                        "type": "UserAssigned",
+                        "userAssignedIdentities": {
+                          "[format('{0}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subscriptionId'), parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'))]": {},
+                          "[format('{0}', parameters('aksClusterKubeletIdentityId'))]": {}
+                        }
+                      },
+                      "sku": {
+                        "name": "[parameters('vmsssku')]",
+                        "tier": "Standard",
+                        "capacity": "[parameters('vmsscount')]"
+                      },
+                      "properties": {
+                        "orchestrationMode": "Uniform",
+                        "overprovision": false,
+                        "upgradePolicy": {
+                          "mode": "Automatic",
+                          "automaticOSUpgradePolicy": {
+                            "enableAutomaticOSUpgrade": true
+                          }
+                        },
+                        "virtualMachineProfile": {
+                          "storageProfile": {
+                            "imageReference": {
+                              "publisher": "canonical",
+                              "offer": "0001-com-ubuntu-server-jammy",
+                              "sku": "22_04-lts-gen2",
+                              "version": "latest"
+                            },
+                            "osDisk": {
+                              "createOption": "FromImage",
+                              "caching": "ReadWrite",
+                              "diskSizeGB": 500,
+                              "managedDisk": {
+                                "storageAccountType": "Premium_LRS"
+                              }
+                            }
+                          },
+                          "extensionProfile": {
+                            "extensions": [
+                              {
+                                "name": "[format('{0}', parameters('extensionName'))]",
+                                "properties": {
+                                  "publisher": "Microsoft.Azure.Extensions",
+                                  "type": "CustomScript",
+                                  "typeHandlerVersion": "2.1",
+                                  "autoUpgradeMinorVersion": true,
+                                  "protectedSettings": {
+                                    "script": "[reference(resourceId('Microsoft.Resources/deployments', parameters('extensionName')), '2022-09-01').outputs.scripts.value[parameters('vmsssku')]]"
+                                  }
+                                }
+                              },
+                              {
+                                "name": "HealthExtension",
+                                "properties": {
+                                  "publisher": "Microsoft.ManagedServices",
+                                  "type": "ApplicationHealthLinux",
+                                  "typeHandlerVersion": "1.0",
+                                  "autoUpgradeMinorVersion": true,
+                                  "settings": {
+                                    "port": 80,
+                                    "protocol": "http",
+                                    "requestPath": "/health"
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "osProfile": {
+                            "computerNamePrefix": "[parameters('name')]",
+                            "adminUsername": "[parameters('adminUsername')]",
+                            "adminPassword": "[parameters('adminPassword')]",
+                            "linuxConfiguration": {
+                              "disablePasswordAuthentication": false
+                            }
+                          },
+                          "securityProfile": "[if(equals(parameters('securityType'), 'TrustedLaunch'), variables('securityProfileJson'), null())]",
+                          "networkProfile": {
+                            "networkInterfaceConfigurations": "[concat(createArray(createObject('name', 'primary-nic', 'properties', createObject('primary', true(), 'enableAcceleratedNetworking', true(), 'ipConfigurations', createArray(createObject('name', 'primary-ip', 'properties', createObject('subnet', createObject('id', format('{0}/subnets/{1}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subscriptionId'), parameters('vnetrgname')), 'Microsoft.Network/virtualNetworks', parameters('vnetname')), parameters('subnetname'))), 'primary', true(), 'publicIPAddressConfiguration', createObject('name', 'pub', 'sku', createObject('name', 'Standard')))))))), variables('delegatenics'))]"
+                          }
+                        }
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Resources/deployments', parameters('extensionName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Resources/deployments",
+                      "apiVersion": "2022-09-01",
+                      "name": "[parameters('extensionName')]",
+                      "properties": {
+                        "expressionEvaluationOptions": {
+                          "scope": "inner"
+                        },
+                        "mode": "Incremental",
+                        "parameters": {
+                          "extversion": {
+                            "value": "000000"
+                          },
+                          "hubgroup": {
+                            "value": "[parameters('resourceGroupName')]"
+                          },
+                          "hubsub": {
+                            "value": "[parameters('subscriptionId')]"
+                          }
+                        },
+                        "template": {
+                          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                          "languageVersion": "2.0",
+                          "contentVersion": "1.0.0.0",
+                          "metadata": {
+                            "_generator": {
+                              "name": "bicep",
+                              "version": "0.34.44.8038",
+                              "templateHash": "5482259691798818046"
+                            }
+                          },
+                          "functions": [
+                            {
+                              "namespace": "_1",
+                              "members": {
+                                "GetArtifactHostName": {
+                                  "parameters": [
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "[format('nexusstaticsa.blob.{0}', _1.GetStorageAccountSuffix())]"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetArtifactUrl": {
+                                  "parameters": [
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "[format('https://{0}', _1.GetArtifactHostName(parameters('tenantId')))]"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetCannonicalUbuntuImageOffer": {
+                                  "parameters": [
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "[if(equals(_1.GetCannonicalUbuntuImageSku(parameters('tenantId')), '22_04-lts-gen2'), '0001-com-ubuntu-server-jammy', 'unknown-sku')]"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetCannonicalUbuntuImageSku": {
+                                  "parameters": [
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "22_04-lts-gen2"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetContainerdVersion": {
+                                  "parameters": [
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "1.7.15"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetK8sVersion": {
+                                  "parameters": [
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "name": "currentVersionArray"
+                                    },
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "1.30.4"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetKubeLoginVersion": {
+                                  "parameters": [
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "0.0.31"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetMcrHostname": {
+                                  "parameters": [
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "mcr.microsoft.com"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetRuncVersion": {
+                                  "parameters": [
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "1.1.12"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetStorageAccountSuffix": {
+                                  "parameters": [],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "[if(startsWith(environment().suffixes.storage, '.'), skip(environment().suffixes.storage, 1), environment().suffixes.storage)]"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          ],
+                          "parameters": {
+                            "hubsub": {
+                              "type": "string"
+                            },
+                            "hubgroup": {
+                              "type": "string"
+                            },
+                            "extversion": {
+                              "type": "string",
+                              "defaultValue": ""
+                            }
+                          },
+                          "variables": {
+                            "$fxv#0": "IyEvYmluL2Jhc2gKc2V0IC14CgplY2hvICJXYWl0aW5nIGZvciA1IG1pbnV0ZXMgYmVmb3JlIGV4ZWN1dGluZyB0aGUgbm9kZSBqb2luIHNjcmlwdC4uLiIKc2xlZXAgMzAwCmVjaG8gIkV4ZWN1dGluZyB0aGUgYWN0dWFsIHNjcmlwdCBub3cuLi4iCgpjb3VudGVyPTAKSzhTX0hPU1ROQU1FPSQxClNUQVRJQ19TQV9IT1NUTkFNRT0kMgp3aGlsZSAhIG5zbG9va3VwICR7U1RBVElDX1NBX0hPU1ROQU1FfSAmPiAvZGV2L251bGwKZG8KICAgIGNvdW50ZXI9JCgoY291bnRlcisxKSkKICAgIGlmIFsgJGNvdW50ZXIgLWdlIDYwMCBdOyB0aGVuCiAgICAgICAgZWNobyAiRmFpbGVkIGRuc2xvb2t1cCBmb3IgJHtTVEFUSUNfU0FfSE9TVE5BTUV9IC0gRE5TIGlzIG5vdCByZWFkeSBhZnRlciB3YWl0aW5nIGZvciAxMCBtaW51dGVzLiIKICAgICAgICBleGl0IDEKICAgIGZpCiAgICBlY2hvICJXYWl0aW5nIGZvciBETlMuLi4iCiAgICBzbGVlcCAxCmRvbmUKZWNobyAiRE5TIGlzIHJlYWR5ISIK",
+                            "$fxv#1": "IyEvYmluL2Jhc2gKCiMgRm9yIGNvbnNpc3RlbmN5IHNha2UgaW5zdGFsbCB0aGUgQXp1cmUgQ0EgY2VydGlmaWNhdGVzIG9uIHRoZSBub2RlCiMgcmVnYXJkbGVzcyBvZiB3aGV0aGVyIG9yIG5vdCB3ZSBhcmUgaW4gdGhlIEFHQwoKZWNobyAiSU5TVEFMTElORyBBWlVSRSBDQSBDRVJUSUZJQ0FURVMuLi4iCnN1ZG8gbWtkaXIgLXAgL3Jvb3QvQXp1cmVDQUNlcnRpZmljYXRlcwojIGh0dHA6Ly8xNjguNjMuMTI5LjE2IGlzIGEgY29uc3RhbnQgZm9yIHRoZSBob3N0J3Mgd2lyZXNlcnZlciBlbmRwb2ludApjZXJ0cz0kKGN1cmwgImh0dHA6Ly8xNjguNjMuMTI5LjE2L21hY2hpbmU/Y29tcD1hY21zcGFja2FnZSZ0eXBlPWNhY2VydGlmaWNhdGVzJmV4dD1qc29uIikKaWYgWyAteiAiJGNlcnRzIiBdOyB0aGVuCiAgICBlY2hvICJGYWlsZWQgdG8gcmV0cmlldmUgY2VydGlmaWNhdGVzIGZyb20gdGhlIHdpcmVzZXJ2ZXIgZW5kcG9pbnQuIgogICAgZXhpdCAxCmZpCklGUz0kJ1xyXG4nCmNlcnROYW1lcz0oJChlY2hvICRjZXJ0cyB8IGdyZXAgLW9QICcoPzw9TmFtZVwiOiBcIilbXlwiXSonKSkKY2VydEJvZGllcz0oJChlY2hvICRjZXJ0cyB8IGdyZXAgLW9QICcoPzw9Q2VydEJvZHlcIjogXCIpW15cIl0qJykpCmZvciBpIGluICR7IWNlcnRCb2RpZXNbQF19OyBkbwogICAgIyBUaGlzIGxpbmUgYWRkcyB0aGUgY2VydCB0byAvcm9vdC9BenVyZUNBQ2VydGlmaWNhdGVzIGFuZCByZXBsYWNlcyB0aGUgLmNlciBvciBtaXNzaW5nIGZpbGUgZXh0ZW5zaW9uIHdpdGggdGhlIC5jcnQgZXh0ZW5zaW9uLgogICAgIyBJdCBhbHNvIHJlcGxhY2VzIGFueSBXaW5kb3dzIGxpbmUgZW5kaW5ncyB3aXRoIFVuaXggb25lcy4KICAgIGVjaG8gJHtjZXJ0Qm9kaWVzWyRpXX0gfCBzZWQgJ3MvXFxyXFxuL1xuL2cnIHwgc2VkICdzL1xcLy9nJyA+ICIvcm9vdC9BenVyZUNBQ2VydGlmaWNhdGVzLyQoZWNobyAke2NlcnROYW1lc1skaV19IHwgc2VkICdzLy5jZXIvLmNydC9nJyB8IHNlZCAncy9cLlteLl0qJC8uY3J0Ji87dDtzLyQvLmNydC8nKSIKZG9uZQpJRlM9JElGU19iYWNrdXAKc3VkbyBjcCAvcm9vdC9BenVyZUNBQ2VydGlmaWNhdGVzLyouY3J0IC91c3IvbG9jYWwvc2hhcmUvY2EtY2VydGlmaWNhdGVzLwpzdWRvIHVwZGF0ZS1jYS1jZXJ0aWZpY2F0ZXMKZWNobyAiQVpVUkUgQ0EgQ0VSVElGSUNBVEVTIElOU1RBTExFRC4i",
+                            "$fxv#2": "IyEvYmluL2Jhc2gKc2V0IC14ZQoKTkVFRF9SQUlEPSIkMSIKQU1EX0dQVT0iJDIiCkxVU1RSRV9FTkFCTEU9ImZhbHNlIgppZiBbWyAkIyA9PSAzIF1dCnRoZW4KICBMVVNUUkVfRU5BQkxFPSIkMyIKZmkKCnRlZSAvZXRjL3N5c3RlbWQvc3lzdGVtL2NvbmZpZy5zZXJ2aWNlID4gL2Rldi9udWxsIDw8RU9GCltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldAoKW1VuaXRdCkRlc2NyaXB0aW9uPWNvbmZpZyBzZXR1cApEZWZhdWx0RGVwZW5kZW5jaWVzPW5vCkJlZm9yZT1rdWJlbGV0LnNlcnZpY2UKRU9GCgppZiBbWyAkTkVFRF9SQUlEID09ICJ0cnVlIiBdXQp0aGVuCiAgICBlY2hvICJCaW5kc1RvPXJhaWQtc2V0dXAuc2VydmljZSIgPj4gL2V0Yy9zeXN0ZW1kL3N5c3RlbS9jb25maWcuc2VydmljZQogICAgZWNobyAiQWZ0ZXI9cmFpZC1zZXR1cC5zZXJ2aWNlIiA+PiAvZXRjL3N5c3RlbWQvc3lzdGVtL2NvbmZpZy5zZXJ2aWNlCmZpCgppZiBbWyAkQU1EX0dQVSA9PSAidHJ1ZSIgXV0KdGhlbgogICAgZWNobyAiQWZ0ZXI9cm9jbXN0YXJ0dXAuc2VydmljZSIgPj4gL2V0Yy9zeXN0ZW1kL3N5c3RlbS9jb25maWcuc2VydmljZQpmaQoKZWNobyAiW1NlcnZpY2VdIiA+PiAvZXRjL3N5c3RlbWQvc3lzdGVtL2NvbmZpZy5zZXJ2aWNlCgppZiBbWyAkTFVTVFJFX0VOQUJMRSA9PSAiZmFsc2UiIF1dCnRoZW4KICBlY2hvICJUaW1lb3V0U2VjPTM2MCIgPj4gL2V0Yy9zeXN0ZW1kL3N5c3RlbS9jb25maWcuc2VydmljZQplbHNlCiAgZWNobyAiVGltZW91dFNlYz0xODAwIiA+PiAvZXRjL3N5c3RlbWQvc3lzdGVtL2NvbmZpZy5zZXJ2aWNlCmZpCmVjaG8gIkV4ZWNTdGFydD0vdXNyL2Jpbi9zbGVlcCBpbmZpbml0eSIgPj4gL2V0Yy9zeXN0ZW1kL3N5c3RlbS9jb25maWcuc2VydmljZQoKaWYgW1sgJEFNRF9HUFUgPT0gInRydWUiIF1dCnRoZW4KICAgIGVjaG8gIkV4ZWNTdGFydFByZT0vYmluL2Jhc2ggLWMgXCJyZXQ9XCQoY2F0IC9wcm9jL3VwdGltZSB8IGF3ayAne3ByaW50IFwkMX0nKTsgaWYgZWNobyBcJHJldCc8JzYwMCB8IGJjIC1sIHwgZ3JlcCAxOyB0aGVuIHNsZWVwIDVtOyBmaVwiIiA+PiAvZXRjL3N5c3RlbWQvc3lzdGVtL2NvbmZpZy5zZXJ2aWNlCmZpCgppZiBbWyAkTFVTVFJFX0VOQUJMRSA9PSAidHJ1ZSIgXV0KdGhlbgogICAgZWNobyAiRXhlY1N0YXJ0UHJlPS9iaW4vYmFzaCAtYyBcIndoaWxlIHRydWU7ZG8gaWYgW1sgLWYgL2V0Yy9ERE4uRklSU1QgXV07IHRoZW4gc2xlZXAgMTA7IGVsc2UgZXhpdCAwIDtmaTtkb25lXCIiID4+IC9ldGMvc3lzdGVtZC9zeXN0ZW0vY29uZmlnLnNlcnZpY2UKZmkKCnN5c3RlbWN0bCBlbmFibGUgY29uZmlnCg==",
+                            "$fxv#3": "IyEvYmluL2Jhc2gKc2V0IC14ZQoKU1RBVElDX1NBX1BBVEg9IiQxIgpSVU5DX1ZFUlNJT049IiQyIgpDT05UQUlORVJEX1ZFUlNJT049IiQzIgpNQ1JIT1NUTkFNRT0iJDQiCkRFRkFVTFRfUlVOVElNRT0iJDUiCgpta2RpciAtcCAvZXRjL2NvbnRhaW5lcmQKbWtkaXIgLXAgL3Zhci9saWIvY29udGFpbmVyZAoKCmN1cmwgLW8gcnVuYyAtTCAke1NUQVRJQ19TQV9QQVRIfS9wdWJsaWMvcnVuYy92JHtSVU5DX1ZFUlNJT059L3J1bmMKaW5zdGFsbCAtbSAwNTU1IHJ1bmMgL3Vzci9iaW4vcnVuYwpybSBydW5jCgpjdXJsIC1MTyAke1NUQVRJQ19TQV9QQVRIfS9wdWJsaWMvY29udGFpbmVyZC92JHtDT05UQUlORVJEX1ZFUlNJT059L2NvbnRhaW5lcmQudGFyLmd6CiMgaWYgdGhlIGZpbGUgaXMgYSBwb3NpeCBhcmNoaXZlLCB1bnRhciBpdCB0aGF0IHdheQojIHdvcmthcm91bmQgdG8gaW5jb3JyZWN0IGZpbGV0eXBlIGluIGFnYyBjdXJyZW50bHkuIFRoaXMgbWF5IGJlIGR1ZSB0byBob3cgdGhlIGFyY2hpdmUgd2FzIG9idGFpbmVkIC0gZnJvbSBSZXBvRGVwb3QKIyByYXRoZXIgdGhhbiBzdHJhaWdodCBmcm9tIHRoZSBpbnRlcm5ldC4gVGhlcmUgaXMgb3V0c3RhbmRpbmcgd29yayB0byBzdHJlYW1saW5lIGhvdyAzcCBiaW5hcmllcyBhcmUgCiMgZGVsaXZlcmVkIHRvIHRoZSBhaXJnYXAsIGJ1dCBubyBFVEEgb24gdGhpcyBjdXJyZW50bHkgdW50aWwgaXQgaXMgcHJpb3JpdGl6ZWQuIAojIGh0dHBzOi8vbXNkYXRhLnZpc3VhbHN0dWRpby5jb20vVmllbm5hL19zcHJpbnRzL2JhY2tsb2cvUm9ja2xhbmQlMjBDcmVlay9WaWVubmEvUm9ja2xhbmQlMjBDcmVlay9CYWNrbG9nJTIwSXRlbXM/U3lzdGVtLkFzc2lnbmVkVG89JTQwbWUmd29ya2l0ZW09MzE0ODQ5MgppZiBmaWxlIGNvbnRhaW5lcmQudGFyLmd6IHwgZ3JlcCAtcSAiUE9TSVggdGFyIGFyY2hpdmUiOyB0aGVuCiAgICBlY2hvICJQT1NJWCBhcmNoaXZlIgogICAgdGFyIC14ZiBjb250YWluZXJkLnRhci5neiAtQyAvdXNyCmVsc2UKICAgICMgaWYgdGhlIGZpbGUgaXMgYSBnemlwIGFyY2hpdmUsIHVudGFyIGl0IHRoYXQgd2F5CiAgICBlY2hvICJHWklQIGFyY2hpdmUiCiAgICB0YXIgLXh2emYgY29udGFpbmVyZC50YXIuZ3ogLUMgL3VzcgpmaQpybSBjb250YWluZXJkLnRhci5negoKdGVlIC9ldGMvY29udGFpbmVyZC9jb25maWcudG9tbCA+IC9kZXYvbnVsbCA8PEVPRgp2ZXJzaW9uID0gMgpvb21fc2NvcmUgPSAwCltwbHVnaW5zLiJpby5jb250YWluZXJkLmdycGMudjEuY3JpIl0KICAgICAgICBzYW5kYm94X2ltYWdlID0gIiRNQ1JIT1NUTkFNRS9vc3Mva3ViZXJuZXRlcy9wYXVzZTozLjYiCiAgICAgICAgW3BsdWdpbnMuImlvLmNvbnRhaW5lcmQuZ3JwYy52MS5jcmkiLmNvbnRhaW5lcmRdCiAgICAgICAgICAgICAgICBkZWZhdWx0X3J1bnRpbWVfbmFtZSA9ICIkREVGQVVMVF9SVU5USU1FIgogICAgICAgICAgICAgICAgW3BsdWdpbnMuImlvLmNvbnRhaW5lcmQuZ3JwYy52MS5jcmkiLmNvbnRhaW5lcmQucnVudGltZXMucnVuY10KICAgICAgICAgICAgICAgICAgICAgICAgcnVudGltZV90eXBlID0gImlvLmNvbnRhaW5lcmQucnVuYy52MiIKICAgICAgICAgICAgICAgIFtwbHVnaW5zLiJpby5jb250YWluZXJkLmdycGMudjEuY3JpIi5jb250YWluZXJkLnJ1bnRpbWVzLnJ1bmMub3B0aW9uc10KICAgICAgICAgICAgICAgICAgICAgICAgQmluYXJ5TmFtZSA9ICIvdXNyL2Jpbi9ydW5jIgogICAgICAgICAgICAgICAgICAgICAgICBTeXN0ZW1kQ2dyb3VwID0gdHJ1ZQogICAgICAgICAgICAgICAgW3BsdWdpbnMuImlvLmNvbnRhaW5lcmQuZ3JwYy52MS5jcmkiLmNvbnRhaW5lcmQucnVudGltZXMubnZpZGlhXQogICAgICAgICAgICAgICAgICAgICAgICBwcml2aWxlZ2VkX3dpdGhvdXRfaG9zdF9kZXZpY2VzID0gZmFsc2UKICAgICAgICAgICAgICAgICAgICAgICAgcnVudGltZV9lbmdpbmUgPSAiIgogICAgICAgICAgICAgICAgICAgICAgICBydW50aW1lX3Jvb3QgPSAiIgogICAgICAgICAgICAgICAgICAgICAgICBydW50aW1lX3R5cGUgPSAiaW8uY29udGFpbmVyZC5ydW5jLnYxIgogICAgICAgICAgICAgICAgW3BsdWdpbnMuImlvLmNvbnRhaW5lcmQuZ3JwYy52MS5jcmkiLmNvbnRhaW5lcmQucnVudGltZXMubnZpZGlhLm9wdGlvbnNdCiAgICAgICAgICAgICAgICAgICAgICAgIEJpbmFyeU5hbWUgPSAiL3Vzci9iaW4vbnZpZGlhLWNvbnRhaW5lci1ydW50aW1lIgogICAgICAgICAgICAgICAgICAgICAgICBTeXN0ZW1kQ2dyb3VwID0gdHJ1ZQogICAgICAgIFtwbHVnaW5zLiJpby5jb250YWluZXJkLmdycGMudjEuY3JpIi5yZWdpc3RyeV0KICAgICAgICAgICAgICAgIGNvbmZpZ19wYXRoID0gIi9ldGMvY29udGFpbmVyZC9jZXJ0cy5kIgogICAgICAgIFtwbHVnaW5zLiJpby5jb250YWluZXJkLmdycGMudjEuY3JpIi5yZWdpc3RyeS5oZWFkZXJzXQogICAgICAgICAgICAgICAgWC1NZXRhLVNvdXJjZS1DbGllbnQgPSBbImF6dXJlL2FrcyJdClttZXRyaWNzXQogICAgICAgIGFkZHJlc3MgPSAiMC4wLjAuMDoxMDI1NyIKRU9GCgoKdGVlIC9ldGMvc3lzdGVtZC9zeXN0ZW0vY29udGFpbmVyZC5zZXJ2aWNlID4gL2Rldi9udWxsIDw8RU9GCltVbml0XQpEZXNjcmlwdGlvbj1jb250YWluZXJkIGNvbnRhaW5lciBydW50aW1lCkRvY3VtZW50YXRpb249aHR0cHM6Ly9jb250YWluZXJkLmlvCkFmdGVyPW5ldHdvcmsudGFyZ2V0IGxvY2FsLWZzLnRhcmdldApbU2VydmljZV0KRXhlY1N0YXJ0UHJlPS0vc2Jpbi9tb2Rwcm9iZSBvdmVybGF5CkV4ZWNTdGFydD0vdXNyL2Jpbi9jb250YWluZXJkClR5cGU9bm90aWZ5CkRlbGVnYXRlPXllcwpLaWxsTW9kZT1wcm9jZXNzClJlc3RhcnQ9YWx3YXlzClJlc3RhcnRTZWM9NQojIEhhdmluZyBub24temVybyBMaW1pdCpzIGNhdXNlcyBwZXJmb3JtYW5jZSBwcm9ibGVtcyBkdWUgdG8gYWNjb3VudGluZyBvdmVyaGVhZAojIGluIHRoZSBrZXJuZWwuIFdlIHJlY29tbWVuZCB1c2luZyBjZ3JvdXBzIHRvIGRvIGNvbnRhaW5lci1sb2NhbCBhY2NvdW50aW5nLgpMaW1pdE5QUk9DPWluZmluaXR5CkxpbWl0Q09SRT1pbmZpbml0eQpMaW1pdE5PRklMRT1pbmZpbml0eQpMaW1pdE1FTUxPQ0s9aW5maW5pdHkKIyBDb21tZW50IFRhc2tzTWF4IGlmIHlvdXIgc3lzdGVtZCB2ZXJzaW9uIGRvZXMgbm90IHN1cHBvcnRzIGl0LgojIE9ubHkgc3lzdGVtZCAyMjYgYW5kIGFib3ZlIHN1cHBvcnQgdGhpcyB2ZXJzaW9uLgpUYXNrc01heD1pbmZpbml0eQpPT01TY29yZUFkanVzdD0tOTk5CltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldApFT0YKCnN5c3RlbWN0bCBlbmFibGUgY29udGFpbmVyZA==",
+                            "$fxv#4": "IyEvYmluL2Jhc2gKc2V0IC14ZQoKQUtTX0ZRRE49JDEKQk9PVFNUUkFQX0NMSUVOVF9JRD0kMgpTVEFUSUNfU0FfUEFUSD0kMwpLVUJFTE9HSU5fVkVSU0lPTj0kNAoKY3VybCAtTE8gJHtTVEFUSUNfU0FfUEFUSH0vcHVibGljL2t1YmVsb2dpbi92JHtLVUJFTE9HSU5fVkVSU0lPTn0va3ViZWxvZ2luLnRhci5negp0YXIgLXh2emYga3ViZWxvZ2luLnRhci5negptdiBrdWJlbG9naW4gL3Vzci9sb2NhbC9iaW4Kcm0ga3ViZWxvZ2luLnRhci5negoKbWtkaXIgLXAgL2V0Yy9rdWJlcm5ldGVzCgojIHNldHVwIGJvb3RzdHJhcCBrdWJlY29uZmlnCiMgbm90ZSwgc2luY2Ugd2UncmUgdXNpbmcgTVNJIGxvZ2luLCB0aGUgJ2Vudmlyb25tZW50JyBiZWluZyBoYXJkY29kZWQgdG8gQXp1cmVQdWJsaWNDbG91ZAojIGRvZXNuJ3QgbWF0dGVyLCBzaW5jZSBrdWJlbGV0IHdpbGwganVzdCBncmFiIGEgdG9rZW4gZnJvbSB0aGUgTVNJIGVuZHBvaW50CiMgc28gbm8gbmVlZCB0byBwYXJhbWV0cml6ZSAnLS1lbnZpcm9ubWVudCcKdGVlIC9ldGMva3ViZXJuZXRlcy9ib290c3RyYXAta3ViZWNvbmZpZyA+IC9kZXYvbnVsbCA8PEVPRgphcGlWZXJzaW9uOiB2MQpraW5kOiBDb25maWcKY2x1c3RlcnM6Ci0gbmFtZTogbG9jYWxjbHVzdGVyCiAgY2x1c3RlcjoKICAgIGNlcnRpZmljYXRlLWF1dGhvcml0eTogL2V0Yy9rdWJlcm5ldGVzL2NlcnRzL2NhLmNydAogICAgc2VydmVyOiAiaHR0cHM6Ly8kQUtTX0ZRRE4iCnVzZXJzOgotIG5hbWU6IGt1YmVsZXQtYm9vdHN0cmFwCiAgdXNlcjoKICAgIGV4ZWM6CiAgICAgIGFwaVZlcnNpb246IGNsaWVudC5hdXRoZW50aWNhdGlvbi5rOHMuaW8vdjFiZXRhMQogICAgICBhcmdzOgogICAgICAtIGdldC10b2tlbgogICAgICAtIC0tZW52aXJvbm1lbnQKICAgICAgLSBBenVyZVB1YmxpY0Nsb3VkCiAgICAgIC0gLS1zZXJ2ZXItaWQKICAgICAgLSA2ZGFlNDJmOC00MzY4LTQ2NzgtOTRmZi0zOTYwZTI4ZTM2MzAKICAgICAgLSAtLWxvZ2luCiAgICAgIC0gbXNpCiAgICAgIC0gLS1jbGllbnQtaWQKICAgICAgLSAkQk9PVFNUUkFQX0NMSUVOVF9JRAogICAgICBjb21tYW5kOiBrdWJlbG9naW4KICAgICAgcHJvdmlkZUNsdXN0ZXJJbmZvOiBmYWxzZQpjb250ZXh0czoKLSBjb250ZXh0OgogICAgY2x1c3RlcjogbG9jYWxjbHVzdGVyCiAgICB1c2VyOiBrdWJlbGV0LWJvb3RzdHJhcAogIG5hbWU6IGJvb3RzdHJhcC1jb250ZXh0CmN1cnJlbnQtY29udGV4dDogYm9vdHN0cmFwLWNvbnRleHQKRU9G",
+                            "$fxv#5": "IyEvYmluL2Jhc2gKc2V0IC14ZQoKIyBzZWUgLi4vLi4vcHJvdmlzaW9uc2NyaXB0LmJpY2VwIGZvciB0aGUgb3JkZXIgb2YgcGFyYW1zCktVQkVfVkVSU0lPTj0kMQpBS1NfRlFETj0kMgpLVUJFX0NBX0NFUlQ9JDMKU1RBVElDX1NBX1BBVEg9JDQKSU5TVEFOQ0VfVFlQRT0kNQoKTk9ERV9OQU1FPSQoaG9zdG5hbWUpCgpta2RpciAtcCAvdmFyL2xpYi9jbmkKbWtkaXIgLXAgL29wdC9jbmkvYmluCm1rZGlyIC1wIC9ldGMvY25pL25ldC5kCm1rZGlyIC1wIC9ldGMva3ViZXJuZXRlcy92b2x1bWVwbHVnaW5zCm1rZGlyIC1wIC9ldGMva3ViZXJuZXRlcy9jZXJ0cwpta2RpciAtcCAvZXRjL3N5c3RlbWQvc3lzdGVtL2t1YmVsZXQuc2VydmljZS5kCm1rZGlyIC1wIC92YXIvbGliL2t1YmVsZXQKCgpLVUJFTEVUX0NBPSIvZXRjL2t1YmVybmV0ZXMvY2VydHMvY2EuY3J0Igp0b3VjaCAiJHtLVUJFTEVUX0NBfSIKY2htb2QgMDYwMCAiJHtLVUJFTEVUX0NBfSIKY2hvd24gcm9vdDpyb290ICIke0tVQkVMRVRfQ0F9IgplY2hvICRLVUJFX0NBX0NFUlQgfCBiYXNlNjQgLWQgPiAvZXRjL2t1YmVybmV0ZXMvY2VydHMvY2EuY3J0CgpLVUJFTEVUX1NFUlZFUl9QUklWQVRFX0tFWV9QQVRIPSIvZXRjL2t1YmVybmV0ZXMvY2VydHMva3ViZWxldHNlcnZlci5rZXkiCktVQkVMRVRfU0VSVkVSX0NFUlRfUEFUSD0iL2V0Yy9rdWJlcm5ldGVzL2NlcnRzL2t1YmVsZXRzZXJ2ZXIuY3J0IgpvcGVuc3NsIGdlbnJzYSAtb3V0ICRLVUJFTEVUX1NFUlZFUl9QUklWQVRFX0tFWV9QQVRIIDQwOTYKb3BlbnNzbCByZXEgLW5ldyAteDUwOSAtZGF5cyA3MzAwIC1rZXkgJEtVQkVMRVRfU0VSVkVSX1BSSVZBVEVfS0VZX1BBVEggLW91dCAkS1VCRUxFVF9TRVJWRVJfQ0VSVF9QQVRIIC1zdWJqICIvQ049c3lzdGVtOm5vZGU6JHtOT0RFX05BTUV9IgoKY3VybCAtTE8gJHtTVEFUSUNfU0FfUEFUSH0vcHVibGljL2s4cy92JHtLVUJFX1ZFUlNJT059L2t1YmVybmV0ZXMtbm9kZS1saW51eC1hbWQ2NC50YXIuZ3oKaWYgWyAkPyAtbmUgMCBdOyB0aGVuCiAgICBlY2hvICJGYWlsZWQgdG8gZG93bmxvYWQga3ViZXJuZXRlcy1ub2RlLWxpbnV4LWFtZDY0LnRhci5neiIKICAgIGV4aXQgMQpmaQp0YXIgLXh2emYga3ViZXJuZXRlcy1ub2RlLWxpbnV4LWFtZDY0LnRhci5neiBrdWJlcm5ldGVzL25vZGUvYmluL2t1YmVsZXQKbXYga3ViZXJuZXRlcy9ub2RlL2Jpbi9rdWJlbGV0IC91c3IvbG9jYWwvYmluCnJtIGt1YmVybmV0ZXMtbm9kZS1saW51eC1hbWQ2NC50YXIuZ3oKCiMgc2V0dXAgd2ljcmVkCm1rZGlyIC1wIC9vcHQvaW1hZ2UtY3JlZC1wcm92aWRlci9jb25maWcvCm1rZGlyIC1wIC9vcHQvaW1hZ2UtY3JlZC1wcm92aWRlci9iaW4vCgp0b3VjaCAvb3B0L2ltYWdlLWNyZWQtcHJvdmlkZXIvYmluL3dvcmtsb2FkLWlkZW50aXR5LXRva2VuCmNobW9kICt4IC9vcHQvaW1hZ2UtY3JlZC1wcm92aWRlci9iaW4vd29ya2xvYWQtaWRlbnRpdHktdG9rZW4KCnRlZSAvb3B0L2ltYWdlLWNyZWQtcHJvdmlkZXIvY29uZmlnL3dvcmtsb2FkLWlkZW50aXR5LXRva2VuLnlhbWwgPiAvZGV2L251bGwgPDxFT0YKa2luZDogQ3JlZGVudGlhbFByb3ZpZGVyQ29uZmlnCmFwaVZlcnNpb246IGt1YmVsZXQuY29uZmlnLms4cy5pby92MQpwcm92aWRlcnM6Ci0gbmFtZTogd29ya2xvYWQtaWRlbnRpdHktdG9rZW4KICBhcGlWZXJzaW9uOiBjcmVkZW50aWFscHJvdmlkZXIua3ViZWxldC5rOHMuaW8vdjEKICBtYXRjaEltYWdlczoKICAtICIqLmF6dXJlY3IuaW8iCiAgLSAiKi5henVyZWNyLmNuIgogIC0gIiouYXp1cmVjci51cyIKICAtICIqLmF6dXJlY3IubWljcm9zb2Z0LnNjbG91ZCIKICAtICIqLmF6dXJlY3IuZWFnbGV4LmljLmdvdiIKICBhcmdzOgogIC0gL3Zhci9ydW4vd29ya2xvYWQtaWRlbnRpdHktdG9rZW4uc29jawogIGRlZmF1bHRDYWNoZUR1cmF0aW9uOiAxbQpFT0YKIyBlbmQgc2V0dXAgd2ljcmVkCgojIHNldHVwIGt1YmVsZXQgY29uZmlnCkROU19JUD0iMTAuMC4wLjEwIgp0ZWUgL2V0Yy9kZWZhdWx0L2t1YmVsZXQgPiAvZGV2L251bGwgPDxFT0YKS1VCRUxFVF9OT0RFX0xBQkVMUz0ia3ViZXJuZXRlcy5henVyZS5jb20vbW9kZT1zeXN0ZW0sa3ViZXJuZXRlcy5henVyZS5jb20vcm9sZT1hZ2VudCxub2RlLmt1YmVybmV0ZXMuaW8vZXhjbHVkZS1mcm9tLWV4dGVybmFsLWxvYWQtYmFsYW5jZXJzPXRydWUsa3ViZXJuZXRlcy5henVyZS5jb20vbWFuYWdlZD1mYWxzZSxrdWJlcm5ldGVzLmlvL29zPWxpbnV4LG5vZGUua3ViZXJuZXRlcy5pby9pbnN0YW5jZS10eXBlPSRJTlNUQU5DRV9UWVBFLFJlcGFpclN0YXR1cz1WYWxpZGF0ZSIKS1VCRUxFVF9GTEFHUz0iLS1hZGRyZXNzPTAuMC4wLjAgLS1hbm9ueW1vdXMtYXV0aD1mYWxzZSAtLWF1dGhlbnRpY2F0aW9uLXRva2VuLXdlYmhvb2s9dHJ1ZSAtLWF1dGhvcml6YXRpb24tbW9kZT1XZWJob29rIC0tY2dyb3VwLWRyaXZlcj1zeXN0ZW1kIC0tY2dyb3Vwcy1wZXItcW9zPXRydWUgLS1jbGllbnQtY2EtZmlsZT0vZXRjL2t1YmVybmV0ZXMvY2VydHMvY2EuY3J0IC0tY2x1c3Rlci1kbnM9JHtETlNfSVB9IC0tY2x1c3Rlci1kb21haW49Y2x1c3Rlci5sb2NhbCAtLWVuZm9yY2Utbm9kZS1hbGxvY2F0YWJsZT1wb2RzIC0tZXZlbnQtcXBzPTAgLS1ldmljdGlvbi1oYXJkPW1lbW9yeS5hdmFpbGFibGU8NzUwTWksbm9kZWZzLmF2YWlsYWJsZTwxMCUsbm9kZWZzLmlub2Rlc0ZyZWU8NSUgIC0taW1hZ2UtZ2MtaGlnaC10aHJlc2hvbGQ9NjUgLS1pbWFnZS1nYy1sb3ctdGhyZXNob2xkPTU1IC0ta2VlcC10ZXJtaW5hdGVkLXBvZC12b2x1bWVzPWZhbHNlIC0ta3ViZS1yZXNlcnZlZD1jcHU9MTgwbSxtZW1vcnk9MzM5OU1pLHBpZD0xMDAwIC0ta3ViZWNvbmZpZz0vdmFyL2xpYi9rdWJlbGV0L2t1YmVjb25maWcgLS1tYXgtcG9kcz0xMTAgLS1ub2RlLXN0YXR1cy11cGRhdGUtZnJlcXVlbmN5PTEwcyAtLXBvZC1pbmZyYS1jb250YWluZXItaW1hZ2U9bWNyLm1pY3Jvc29mdC5jb20vb3NzL2t1YmVybmV0ZXMvcGF1c2U6My42IC0tcHJvdGVjdC1rZXJuZWwtZGVmYXVsdHM9dHJ1ZSAtLXJlYWQtb25seS1wb3J0PTAgLS1ldmljdGlvbi1oYXJkPW1lbW9yeS5hdmFpbGFibGU8NzUwTWksbm9kZWZzLmF2YWlsYWJsZTwxMCUsbm9kZWZzLmlub2Rlc0ZyZWU8NSUscGlkLmF2YWlsYWJsZTwyMDAwIC0tcm90YXRlLWNlcnRpZmljYXRlcz10cnVlIC0tc3RyZWFtaW5nLWNvbm5lY3Rpb24taWRsZS10aW1lb3V0PTRoIC0tdGxzLWNlcnQtZmlsZT0vZXRjL2t1YmVybmV0ZXMvY2VydHMva3ViZWxldHNlcnZlci5jcnQgLS10bHMtY2lwaGVyLXN1aXRlcz1UTFNfRUNESEVfRUNEU0FfV0lUSF9BRVNfMTI4X0dDTV9TSEEyNTYsVExTX0VDREhFX1JTQV9XSVRIX0FFU18xMjhfR0NNX1NIQTI1NixUTFNfRUNESEVfRUNEU0FfV0lUSF9DSEFDSEEyMF9QT0xZMTMwNSxUTFNfRUNESEVfUlNBX1dJVEhfQUVTXzI1Nl9HQ01fU0hBMzg0LFRMU19FQ0RIRV9SU0FfV0lUSF9DSEFDSEEyMF9QT0xZMTMwNSxUTFNfRUNESEVfRUNEU0FfV0lUSF9BRVNfMjU2X0dDTV9TSEEzODQsVExTX1JTQV9XSVRIX0FFU18yNTZfR0NNX1NIQTM4NCxUTFNfUlNBX1dJVEhfQUVTXzEyOF9HQ01fU0hBMjU2IC0tdGxzLXByaXZhdGUta2V5LWZpbGU9L2V0Yy9rdWJlcm5ldGVzL2NlcnRzL2t1YmVsZXRzZXJ2ZXIua2V5IC0taW1hZ2UtY3JlZGVudGlhbC1wcm92aWRlci1jb25maWc9L29wdC9pbWFnZS1jcmVkLXByb3ZpZGVyL2NvbmZpZy93b3JrbG9hZC1pZGVudGl0eS10b2tlbi55YW1sIC0taW1hZ2UtY3JlZGVudGlhbC1wcm92aWRlci1iaW4tZGlyPS9vcHQvaW1hZ2UtY3JlZC1wcm92aWRlci9iaW4gLS1jb250YWluZXItbG9nLW1heC1zaXplPTVHaSAtLWNvbnRhaW5lci1sb2ctbWF4LWZpbGVzPTIiCkVPRgoKIyBjYW4gc2ltcGxpZnkgdGhpcyArIDIgZm9sbG93aW5nIGZpbGVzIGJ5IG1lcmdpbmcgdG9nZXRoZXIKdGVlIC9ldGMvc3lzdGVtZC9zeXN0ZW0va3ViZWxldC5zZXJ2aWNlLmQvMTAtY29udGFpbmVyZC5jb25mID4gL2Rldi9udWxsIDw8J0VPRicKW1NlcnZpY2VdCkVudmlyb25tZW50PUtVQkVMRVRfQ09OVEFJTkVSRF9GTEFHUz0iLS1ydW50aW1lLXJlcXVlc3QtdGltZW91dD0xNW0gLS1jb250YWluZXItcnVudGltZS1lbmRwb2ludD11bml4Oi8vL3J1bi9jb250YWluZXJkL2NvbnRhaW5lcmQuc29jayIKRU9GCgp0ZWUgL2V0Yy9zeXN0ZW1kL3N5c3RlbS9rdWJlbGV0LnNlcnZpY2UuZC8xMC10bHNib290c3RyYXAuY29uZiA+IC9kZXYvbnVsbCA8PCdFT0YnCltTZXJ2aWNlXQpFbnZpcm9ubWVudD1LVUJFTEVUX1RMU19CT09UU1RSQVBfRkxBR1M9Ii0ta3ViZWNvbmZpZyAvdmFyL2xpYi9rdWJlbGV0L2t1YmVjb25maWcgLS1ib290c3RyYXAta3ViZWNvbmZpZyAvZXRjL2t1YmVybmV0ZXMvYm9vdHN0cmFwLWt1YmVjb25maWciCkVPRgoKdGVlIC9ldGMvc3lzdGVtZC9zeXN0ZW0va3ViZWxldC5zZXJ2aWNlID4gL2Rldi9udWxsIDw8J0VPRicKW1VuaXRdCkRlc2NyaXB0aW9uPUt1YmVsZXQKQ29uZGl0aW9uUGF0aEV4aXN0cz0vdXNyL2xvY2FsL2Jpbi9rdWJlbGV0ClJlcXVpcmVzPWNvbnRhaW5lcmQuc2VydmljZQpBZnRlcj1jb250YWluZXJkLnNlcnZpY2UKUmVxdWlyZXM9Y29uZmlnLnNlcnZpY2UKQWZ0ZXI9Y29uZmlnLnNlcnZpY2UKW1NlcnZpY2VdClJlc3RhcnQ9YWx3YXlzCkVudmlyb25tZW50RmlsZT0vZXRjL2RlZmF1bHQva3ViZWxldApTdWNjZXNzRXhpdFN0YXR1cz0xNDMKIyBBY2UgZG9lcyBub3QgcmVjYWxsIHdoeSB0aGlzIGlzIGRvbmUKRXhlY1N0YXJ0UHJlPS9iaW4vYmFzaCAtYyAiaWYgWyAkKG1vdW50IHwgZ3JlcCBcIi92YXIvbGliL2t1YmVsZXRcIiB8IHdjIC1sKSAtbGUgMCBdIDsgdGhlbiAvYmluL21vdW50IC0tYmluZCAvdmFyL2xpYi9rdWJlbGV0IC92YXIvbGliL2t1YmVsZXQgOyBmaSIKVGltZW91dFNlYz0xMjAwCkV4ZWNTdGFydFByZT0vYmluL21vdW50IC0tbWFrZS1zaGFyZWQgL3Zhci9saWIva3ViZWxldApFeGVjU3RhcnRQcmU9LS9zYmluL2VidGFibGVzIC10IG5hdCAtLWxpc3QKRXhlY1N0YXJ0UHJlPS0vc2Jpbi9pcHRhYmxlcyAtdCBuYXQgLS1udW1lcmljIC0tbGlzdApFeGVjU3RhcnQ9L3Vzci9sb2NhbC9iaW4va3ViZWxldCBcCiAgICAgICAgLS1lbmFibGUtc2VydmVyIFwKICAgICAgICAtLW5vZGUtbGFiZWxzPSIke0tVQkVMRVRfTk9ERV9MQUJFTFN9IiBcCiAgICAgICAgLS12PTIgXAogICAgICAgIC0tdm9sdW1lLXBsdWdpbi1kaXI9L2V0Yy9rdWJlcm5ldGVzL3ZvbHVtZXBsdWdpbnMgXAogICAgICAgICRLVUJFTEVUX1RMU19CT09UU1RSQVBfRkxBR1MgXAogICAgICAgICRLVUJFTEVUX0NPTkZJR19GSUxFX0ZMQUdTIFwKICAgICAgICAkS1VCRUxFVF9DT05UQUlORVJEX0ZMQUdTIFwKICAgICAgICAkS1VCRUxFVF9GTEFHUwpbSW5zdGFsbF0KV2FudGVkQnk9bXVsdGktdXNlci50YXJnZXQKRU9GCgp0ZWUgL2V0Yy9zeXNjdGwuZC85OTktc3lzY3RsLWFrcy5jb25mID4gL2Rldi9udWxsIDw8RU9GCiMgY29udGFpbmVyIG5ldHdvcmtpbmcKbmV0LmlwdjQuaXBfZm9yd2FyZCA9IDEKbmV0LmlwdjQuY29uZi5hbGwuZm9yd2FyZGluZyA9IDEKbmV0LmlwdjYuY29uZi5hbGwuZm9yd2FyZGluZyA9IDEKbmV0LmJyaWRnZS5icmlkZ2UtbmYtY2FsbC1pcHRhYmxlcyA9IDEKCiMgcmVmZXIgdG8gaHR0cHM6Ly9naXRodWIuY29tL2t1YmVybmV0ZXMva3ViZXJuZXRlcy9ibG9iLzc1ZDQ1YmRmYzllZWRhMTVmYjU1MGUwMGRhNjYyYzEyZDdkMzc5ODUvcGtnL2t1YmVsZXQvY20vY29udGFpbmVyX21hbmFnZXJfbGludXguZ28jTDM1OS1MMzk3CnZtLm92ZXJjb21taXRfbWVtb3J5ID0gMQprZXJuZWwucGFuaWMgPSAxMAprZXJuZWwucGFuaWNfb25fb29wcyA9IDEKIyB0byBlbnN1cmUgbm9kZSBzdGFiaWxpdHksIHdlIHNldCB0aGlzIHRvIHRoZSBQSURfTUFYX0xJTUlUIG9uIDY0LWJpdCBzeXN0ZW1zOiByZWZlciB0byBodHRwczovL2t1YmVybmV0ZXMuaW8vZG9jcy9jb25jZXB0cy9wb2xpY3kvcGlkLWxpbWl0aW5nLwprZXJuZWwucGlkX21heCA9IDQxOTQzMDQKIyBodHRwczovL2dpdGh1Yi5jb20vQXp1cmUvQUtTL2lzc3Vlcy83NzIKZnMuaW5vdGlmeS5tYXhfdXNlcl93YXRjaGVzID0gMTA0ODU3NgojIFVidW50dSAyMi4wNCBoYXMgaW5vdGlmeV9tYXhfdXNlcl9pbnN0YW5jZXMgc2V0IHRvIDEyOCwgd2hlcmUgYXMgVWJ1bnR1IDE4LjA0IGhhZCAxMDI0Lgpmcy5pbm90aWZ5Lm1heF91c2VyX2luc3RhbmNlcyA9IDEwMjQKCiMgVGhpcyBpcyBhIHBhcnRpYWwgd29ya2Fyb3VuZCB0byB0aGlzIHVwc3RyZWFtIEt1YmVybmV0ZXMgaXNzdWU6CiMgaHR0cHM6Ly9naXRodWIuY29tL2t1YmVybmV0ZXMva3ViZXJuZXRlcy9pc3N1ZXMvNDE5MTYjaXNzdWVjb21tZW50LTMxMjQyODczMQpuZXQuaXB2NC50Y3BfcmV0cmllczI9OApuZXQuY29yZS5tZXNzYWdlX2J1cnN0PTgwCm5ldC5jb3JlLm1lc3NhZ2VfY29zdD00MApuZXQuY29yZS5zb21heGNvbm49MTYzODQKbmV0LmlwdjQudGNwX21heF9zeW5fYmFja2xvZz0xNjM4NApuZXQuaXB2NC5uZWlnaC5kZWZhdWx0LmdjX3RocmVzaDE9NDA5NgpuZXQuaXB2NC5uZWlnaC5kZWZhdWx0LmdjX3RocmVzaDI9ODE5MgpuZXQuaXB2NC5uZWlnaC5kZWZhdWx0LmdjX3RocmVzaDM9MTYzODQKRU9GCnN5c2N0bCAtLXN5c3RlbQoKCnN5c3RlbWN0bCBlbmFibGUga3ViZWxldAoKaWYgW1sgL2V0Yy9yc3lzbG9nLmQvNTAtZGVmYXVsdC5jb25mIF1dCnRoZW4KICAgIGlmICEgZ3JlcCBrdWJlbGV0IC9ldGMvcnN5c2xvZy5kLzUwLWRlZmF1bHQuY29uZgogICAgdGhlbgogICAgICAgIGVjaG8gImlmIFwkcHJvZ3JhbW5hbWUgPT0gJ2t1YmVsZXQnIHRoZW4gL3Zhci9sb2cva3ViZWxldC5sb2ciID4+IC9ldGMvcnN5c2xvZy5kLzUwLWRlZmF1bHQuY29uZgoJCXN5c3RlbWN0bCByZXN0YXJ0IHJzeXNsb2cKICAgIGZpCmZpCg==",
+                            "artifactHostname": "[_1.GetArtifactHostName(tenant().tenantId)]",
+                            "artifactUrl": "[_1.GetArtifactUrl(tenant().tenantId)]",
+                            "mcrUrl": "[_1.GetMcrHostname(tenant().tenantId)]",
+                            "runcVersion": "[_1.GetRuncVersion(tenant().tenantId)]",
+                            "containerdVersion": "[_1.GetContainerdVersion(tenant().tenantId)]",
+                            "kubeLoginVersion": "[_1.GetKubeLoginVersion(tenant().tenantId)]",
+                            "cacertscript": "[format('echo {0} | base64 -d | bash -s ', variables('$fxv#1'))]",
+                            "configscript": "[format('echo {0} | base64 -d | bash -s', variables('$fxv#2'))]",
+                            "containerdscript": "[format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#3'), variables('artifactUrl'), variables('runcVersion'), variables('containerdVersion'), variables('mcrUrl'))]"
+                          },
+                          "resources": {
+                            "aks": {
+                              "existing": true,
+                              "type": "Microsoft.ContainerService/managedClusters",
+                              "apiVersion": "2023-06-01",
+                              "subscriptionId": "[parameters('hubsub')]",
+                              "resourceGroup": "[parameters('hubgroup')]",
+                              "name": "aks"
+                            },
+                            "aksbootstrapid": {
+                              "existing": true,
+                              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+                              "apiVersion": "2023-01-31",
+                              "subscriptionId": "[parameters('hubsub')]",
+                              "resourceGroup": "[parameters('hubgroup')]",
+                              "name": "helm-script-msi3"
+                            }
+                          },
+                          "outputs": {
+                            "scripts": {
+                              "type": "object",
+                              "value": "[reduce(map(items(createObject('Standard_E16s_v3', concat(createArray(format('echo {0} | base64 -d | bash -s {1} {2}', variables('$fxv#0'), reference('aks').fqdn, variables('artifactHostname')), variables('cacertscript'), format('{0} false false', variables('configscript')), format('{0} runc', variables('containerdscript')), format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#4'), reference('aks').fqdn, reference('aksbootstrapid').clientId, variables('artifactUrl'), variables('kubeLoginVersion'))), createArray(format('{0} Standard_E16s_v3 redis', format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#5'), _1.GetK8sVersion(split(reference('aks').kubernetesVersion, '.'), tenant().tenantId), reference('aks').fqdn, split(substring(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), add(indexOf(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), 'certificate-authority-data: '), 28)), '\n')[0], variables('artifactUrl'))))), 'Standard_E8s_v3', concat(createArray(format('echo {0} | base64 -d | bash -s {1} {2}', variables('$fxv#0'), reference('aks').fqdn, variables('artifactHostname')), variables('cacertscript'), format('{0} false false', variables('configscript')), format('{0} runc', variables('containerdscript')), format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#4'), reference('aks').fqdn, reference('aksbootstrapid').clientId, variables('artifactUrl'), variables('kubeLoginVersion'))), createArray(format('{0} Standard_E8s_v3 cpu', format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#5'), _1.GetK8sVersion(split(reference('aks').kubernetesVersion, '.'), tenant().tenantId), reference('aks').fqdn, split(substring(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), add(indexOf(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), 'certificate-authority-data: '), 28)), '\n')[0], variables('artifactUrl'))))), 'Standard_D8s_v3', concat(createArray(format('echo {0} | base64 -d | bash -s {1} {2}', variables('$fxv#0'), reference('aks').fqdn, variables('artifactHostname')), variables('cacertscript'), format('{0} false false', variables('configscript')), format('{0} runc', variables('containerdscript')), format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#4'), reference('aks').fqdn, reference('aksbootstrapid').clientId, variables('artifactUrl'), variables('kubeLoginVersion'))), createArray(format('{0} Standard_D8s_v3 cpu', format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#5'), _1.GetK8sVersion(split(reference('aks').kubernetesVersion, '.'), tenant().tenantId), reference('aks').fqdn, split(substring(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), add(indexOf(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), 'certificate-authority-data: '), 28)), '\n')[0], variables('artifactUrl'))))), 'Standard_D16s_v3', concat(createArray(format('echo {0} | base64 -d | bash -s {1} {2}', variables('$fxv#0'), reference('aks').fqdn, variables('artifactHostname')), variables('cacertscript'), format('{0} false false', variables('configscript')), format('{0} runc', variables('containerdscript')), format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#4'), reference('aks').fqdn, reference('aksbootstrapid').clientId, variables('artifactUrl'), variables('kubeLoginVersion'))), createArray(format('{0} Standard_D16s_v3 cpu', format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#5'), _1.GetK8sVersion(split(reference('aks').kubernetesVersion, '.'), tenant().tenantId), reference('aks').fqdn, split(substring(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), add(indexOf(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), 'certificate-authority-data: '), 28)), '\n')[0], variables('artifactUrl'))))), 'Standard_D32s_v3', concat(createArray(format('echo {0} | base64 -d | bash -s {1} {2}', variables('$fxv#0'), reference('aks').fqdn, variables('artifactHostname')), variables('cacertscript'), format('{0} false false', variables('configscript')), format('{0} runc', variables('containerdscript')), format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#4'), reference('aks').fqdn, reference('aksbootstrapid').clientId, variables('artifactUrl'), variables('kubeLoginVersion'))), createArray(format('{0} Standard_D32s_v3 cpu', format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#5'), _1.GetK8sVersion(split(reference('aks').kubernetesVersion, '.'), tenant().tenantId), reference('aks').fqdn, split(substring(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), add(indexOf(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), 'certificate-authority-data: '), 28)), '\n')[0], variables('artifactUrl'))))), 'Standard_D48s_v3', concat(createArray(format('echo {0} | base64 -d | bash -s {1} {2}', variables('$fxv#0'), reference('aks').fqdn, variables('artifactHostname')), variables('cacertscript'), format('{0} false false', variables('configscript')), format('{0} runc', variables('containerdscript')), format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#4'), reference('aks').fqdn, reference('aksbootstrapid').clientId, variables('artifactUrl'), variables('kubeLoginVersion'))), createArray(format('{0} Standard_D48s_v3 cpu', format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#5'), _1.GetK8sVersion(split(reference('aks').kubernetesVersion, '.'), tenant().tenantId), reference('aks').fqdn, split(substring(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), add(indexOf(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), 'certificate-authority-data: '), 28)), '\n')[0], variables('artifactUrl'))))), 'Standard_D64s_v3', concat(createArray(format('echo {0} | base64 -d | bash -s {1} {2}', variables('$fxv#0'), reference('aks').fqdn, variables('artifactHostname')), variables('cacertscript'), format('{0} false false', variables('configscript')), format('{0} runc', variables('containerdscript')), format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#4'), reference('aks').fqdn, reference('aksbootstrapid').clientId, variables('artifactUrl'), variables('kubeLoginVersion'))), createArray(format('{0} Standard_D64s_v3 cpu', format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#5'), _1.GetK8sVersion(split(reference('aks').kubernetesVersion, '.'), tenant().tenantId), reference('aks').fqdn, split(substring(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), add(indexOf(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), 'certificate-authority-data: '), 28)), '\n')[0], variables('artifactUrl'))))))), lambda('entity', createObject('key', lambdaVariables('entity').key, 'val', base64(join(concat(createArray('#!/bin/bash', 'set -ex', '[[ -f \"/var/lib/kubelet/kubeconfig\" ]] && echo \"please reimage to trigger newer kube ext\" && exit 0', format('echo NEXUS: {0}, HASH {1}', parameters('extversion'), uniqueString(join(lambdaVariables('entity').value, '\n')))), lambdaVariables('entity').value, createArray('shutdown -r +1', format('echo {0} > /etc/nexus-kube-version', parameters('extversion')))), '\n'))))), createObject(), lambda('cur', 'next', union(lambdaVariables('cur'), createObject(format('{0}', lambdaVariables('next').key), lambdaVariables('next').val))))]"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "vmssDeploymentLogs": {
+              "type": "array",
+              "copy": {
+                "count": "[length(parameters('vmssNames'))]",
+                "input": {
+                  "name": "[parameters('vmssNames')[copyIndex()]]",
+                  "logFile": "[if(parameters('enableLogging'), format('{0}/lin-script-{1}.log', parameters('logFilePath'), parameters('vmssNames')[copyIndex()]), null())]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deploymentScripts', 'aksBYONScript')]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'aksClusterKubeletIdentity')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "workerVmssCreationModule",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "vnetResourceGroupName": {
+            "value": "[parameters('rg')]"
+          },
+          "infraVnetName": {
+            "value": "[parameters('infraVnetName')]"
+          },
+          "infraSubnetName": {
+            "value": "[parameters('infraSubnetName')]"
+          },
+          "vmssNames": {
+            "value": "[parameters('workerVMSSNames')]"
+          },
+          "aksClusterKubeletIdentityId": {
+            "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'aksClusterKubeletIdentity')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.34.44.8038",
+              "templateHash": "16575600268455262878"
+            }
+          },
+          "parameters": {
+            "infraVnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the infrastructure VNet"
+              }
+            },
+            "infraSubnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the infrastructure subnet"
+              }
+            },
+            "adminPassword": {
+              "type": "string",
+              "defaultValue": "123aA!",
+              "metadata": {
+                "description": "Admin password for the VMSS"
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Location for the deployment"
+              }
+            },
+            "vmssNames": {
+              "type": "array",
+              "metadata": {
+                "description": "Array of DNC VMSS names"
+              }
+            },
+            "bicepTemplatePath": {
+              "type": "string",
+              "defaultValue": "linux.bicep",
+              "metadata": {
+                "description": "Bicep template path for VMSS deployment"
+              }
+            },
+            "vmssSku": {
+              "type": "string",
+              "defaultValue": "Standard_E8s_v3",
+              "metadata": {
+                "description": "SKU for the VMSS"
+              }
+            },
+            "extensionNamePrefix": {
+              "type": "string",
+              "defaultValue": "NodeJoin",
+              "metadata": {
+                "description": "Extension name prefix for the VMSS"
+              }
+            },
+            "deploymentNamePrefix": {
+              "type": "string",
+              "defaultValue": "vmss-deployment",
+              "metadata": {
+                "description": "Unique deployment name prefix"
+              }
+            },
+            "vnetResourceGroupName": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource group name for the VNet"
+              }
+            },
+            "logFilePath": {
+              "type": "string",
+              "defaultValue": "./",
+              "metadata": {
+                "description": "Log file path for VMSS deployment"
+              }
+            },
+            "enableLogging": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Enable logging for VMSS deployment"
+              }
+            },
+            "aksClusterKubeletIdentityId": {
+              "type": "string"
+            }
+          },
+          "resources": [
+            {
+              "copy": {
+                "name": "vmssDeployments",
+                "count": "[length(parameters('vmssNames'))]"
+              },
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2022-09-01",
+              "name": "[format('{0}-{1}', parameters('deploymentNamePrefix'), parameters('vmssNames')[copyIndex()])]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "vnetname": {
+                    "value": "[parameters('infraVnetName')]"
+                  },
+                  "subnetname": {
+                    "value": "[parameters('infraSubnetName')]"
+                  },
+                  "name": {
+                    "value": "[parameters('vmssNames')[copyIndex()]]"
+                  },
+                  "adminPassword": {
+                    "value": "[parameters('adminPassword')]"
+                  },
+                  "vnetrgname": {
+                    "value": "[parameters('vnetResourceGroupName')]"
+                  },
+                  "vmsssku": {
+                    "value": "[parameters('vmssSku')]"
+                  },
+                  "location": {
+                    "value": "[parameters('location')]"
+                  },
+                  "extensionName": {
+                    "value": "[format('{0}-{1}', parameters('extensionNamePrefix'), parameters('vmssNames')[copyIndex()])]"
+                  },
+                  "aksClusterKubeletIdentityId": {
+                    "value": "[format('{0}', parameters('aksClusterKubeletIdentityId'))]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.34.44.8038",
+                      "templateHash": "17941968303289412103"
+                    }
+                  },
+                  "parameters": {
+                    "location": {
+                      "type": "string",
+                      "defaultValue": "[resourceGroup().location]"
+                    },
+                    "vmsssku": {
+                      "type": "string",
+                      "defaultValue": "Standard_D8s_v3"
+                    },
+                    "vmsscount": {
+                      "type": "int",
+                      "defaultValue": 1
+                    },
+                    "resourceGroupName": {
+                      "type": "string",
+                      "defaultValue": "[resourceGroup().name]"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "adminUsername": {
+                      "type": "string",
+                      "defaultValue": "azureuser"
+                    },
+                    "adminPassword": {
+                      "type": "securestring"
+                    },
+                    "subscriptionId": {
+                      "type": "string",
+                      "defaultValue": "[subscription().subscriptionId]"
+                    },
+                    "vnetname": {
+                      "type": "string"
+                    },
+                    "vnetrgname": {
+                      "type": "string"
+                    },
+                    "subnetname": {
+                      "type": "string",
+                      "defaultValue": "nodes"
+                    },
+                    "extensionName": {
+                      "type": "string"
+                    },
+                    "aksClusterKubeletIdentityId": {
+                      "type": "string"
+                    },
+                    "securityType": {
+                      "type": "string",
+                      "defaultValue": "TrustedLaunch",
+                      "allowedValues": [
+                        "Standard",
+                        "TrustedLaunch"
+                      ],
+                      "metadata": {
+                        "description": "Security Type of the Virtual Machine."
+                      }
+                    }
+                  },
+                  "variables": {
+                    "copy": [
+                      {
+                        "name": "delegatenics",
+                        "count": "[length(range(0, 3))]",
+                        "input": {
+                          "name": "[format('delegate-nic{0}', range(0, 3)[copyIndex('delegatenics')])]",
+                          "properties": {
+                            "enableAcceleratedNetworking": true,
+                            "ipConfigurations": [
+                              {
+                                "name": "[format('delegate-ip{0}', range(0, 3)[copyIndex('delegatenics')])]",
+                                "properties": {
+                                  "subnet": {
+                                    "id": "[format('{0}/subnets/{1}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subscriptionId'), parameters('vnetrgname')), 'Microsoft.Network/virtualNetworks', parameters('vnetname')), parameters('subnetname'))]"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ],
+                    "securityProfileJson": {
+                      "uefiSettings": {
+                        "secureBootEnabled": true,
+                        "vTpmEnabled": true
+                      },
+                      "securityType": "[parameters('securityType')]"
+                    }
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.Compute/virtualMachineScaleSets",
+                      "apiVersion": "2023-03-01",
+                      "name": "[parameters('name')]",
+                      "location": "[parameters('location')]",
+                      "tags": {
+                        "AzSecPackAutoConfigReady": "true",
+                        "delegate-ip-allocation-for-nics-without-subnet": "true",
+                        "aks-nic-enable-multi-tenancy": "true",
+                        "delegate-ip-allocation-nic-prefix": "delegate",
+                        "fastpathenabled": "true",
+                        "Skip1PGalleryEnforcement": "true"
+                      },
+                      "identity": {
+                        "type": "UserAssigned",
+                        "userAssignedIdentities": {
+                          "[format('{0}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subscriptionId'), parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'))]": {},
+                          "[format('{0}', parameters('aksClusterKubeletIdentityId'))]": {}
+                        }
+                      },
+                      "sku": {
+                        "name": "[parameters('vmsssku')]",
+                        "tier": "Standard",
+                        "capacity": "[parameters('vmsscount')]"
+                      },
+                      "properties": {
+                        "orchestrationMode": "Uniform",
+                        "overprovision": false,
+                        "upgradePolicy": {
+                          "mode": "Automatic",
+                          "automaticOSUpgradePolicy": {
+                            "enableAutomaticOSUpgrade": true
+                          }
+                        },
+                        "virtualMachineProfile": {
+                          "storageProfile": {
+                            "imageReference": {
+                              "publisher": "canonical",
+                              "offer": "0001-com-ubuntu-server-jammy",
+                              "sku": "22_04-lts-gen2",
+                              "version": "latest"
+                            },
+                            "osDisk": {
+                              "createOption": "FromImage",
+                              "caching": "ReadWrite",
+                              "diskSizeGB": 500,
+                              "managedDisk": {
+                                "storageAccountType": "Premium_LRS"
+                              }
+                            }
+                          },
+                          "extensionProfile": {
+                            "extensions": [
+                              {
+                                "name": "[format('{0}', parameters('extensionName'))]",
+                                "properties": {
+                                  "publisher": "Microsoft.Azure.Extensions",
+                                  "type": "CustomScript",
+                                  "typeHandlerVersion": "2.1",
+                                  "autoUpgradeMinorVersion": true,
+                                  "protectedSettings": {
+                                    "script": "[reference(resourceId('Microsoft.Resources/deployments', parameters('extensionName')), '2022-09-01').outputs.scripts.value[parameters('vmsssku')]]"
+                                  }
+                                }
+                              },
+                              {
+                                "name": "HealthExtension",
+                                "properties": {
+                                  "publisher": "Microsoft.ManagedServices",
+                                  "type": "ApplicationHealthLinux",
+                                  "typeHandlerVersion": "1.0",
+                                  "autoUpgradeMinorVersion": true,
+                                  "settings": {
+                                    "port": 80,
+                                    "protocol": "http",
+                                    "requestPath": "/health"
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "osProfile": {
+                            "computerNamePrefix": "[parameters('name')]",
+                            "adminUsername": "[parameters('adminUsername')]",
+                            "adminPassword": "[parameters('adminPassword')]",
+                            "linuxConfiguration": {
+                              "disablePasswordAuthentication": false
+                            }
+                          },
+                          "securityProfile": "[if(equals(parameters('securityType'), 'TrustedLaunch'), variables('securityProfileJson'), null())]",
+                          "networkProfile": {
+                            "networkInterfaceConfigurations": "[concat(createArray(createObject('name', 'primary-nic', 'properties', createObject('primary', true(), 'enableAcceleratedNetworking', true(), 'ipConfigurations', createArray(createObject('name', 'primary-ip', 'properties', createObject('subnet', createObject('id', format('{0}/subnets/{1}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subscriptionId'), parameters('vnetrgname')), 'Microsoft.Network/virtualNetworks', parameters('vnetname')), parameters('subnetname'))), 'primary', true(), 'publicIPAddressConfiguration', createObject('name', 'pub', 'sku', createObject('name', 'Standard')))))))), variables('delegatenics'))]"
+                          }
+                        }
+                      },
+                      "dependsOn": [
+                        "[resourceId('Microsoft.Resources/deployments', parameters('extensionName'))]"
+                      ]
+                    },
+                    {
+                      "type": "Microsoft.Resources/deployments",
+                      "apiVersion": "2022-09-01",
+                      "name": "[parameters('extensionName')]",
+                      "properties": {
+                        "expressionEvaluationOptions": {
+                          "scope": "inner"
+                        },
+                        "mode": "Incremental",
+                        "parameters": {
+                          "extversion": {
+                            "value": "000000"
+                          },
+                          "hubgroup": {
+                            "value": "[parameters('resourceGroupName')]"
+                          },
+                          "hubsub": {
+                            "value": "[parameters('subscriptionId')]"
+                          }
+                        },
+                        "template": {
+                          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                          "languageVersion": "2.0",
+                          "contentVersion": "1.0.0.0",
+                          "metadata": {
+                            "_generator": {
+                              "name": "bicep",
+                              "version": "0.34.44.8038",
+                              "templateHash": "5482259691798818046"
+                            }
+                          },
+                          "functions": [
+                            {
+                              "namespace": "_1",
+                              "members": {
+                                "GetArtifactHostName": {
+                                  "parameters": [
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "[format('nexusstaticsa.blob.{0}', _1.GetStorageAccountSuffix())]"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetArtifactUrl": {
+                                  "parameters": [
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "[format('https://{0}', _1.GetArtifactHostName(parameters('tenantId')))]"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetCannonicalUbuntuImageOffer": {
+                                  "parameters": [
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "[if(equals(_1.GetCannonicalUbuntuImageSku(parameters('tenantId')), '22_04-lts-gen2'), '0001-com-ubuntu-server-jammy', 'unknown-sku')]"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetCannonicalUbuntuImageSku": {
+                                  "parameters": [
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "22_04-lts-gen2"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetContainerdVersion": {
+                                  "parameters": [
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "1.7.15"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetK8sVersion": {
+                                  "parameters": [
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "name": "currentVersionArray"
+                                    },
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "1.30.4"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetKubeLoginVersion": {
+                                  "parameters": [
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "0.0.31"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetMcrHostname": {
+                                  "parameters": [
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "mcr.microsoft.com"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetRuncVersion": {
+                                  "parameters": [
+                                    {
+                                      "type": "string",
+                                      "name": "tenantId"
+                                    }
+                                  ],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "1.1.12"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                },
+                                "GetStorageAccountSuffix": {
+                                  "parameters": [],
+                                  "output": {
+                                    "type": "string",
+                                    "value": "[if(startsWith(environment().suffixes.storage, '.'), skip(environment().suffixes.storage, 1), environment().suffixes.storage)]"
+                                  },
+                                  "metadata": {
+                                    "__bicep_imported_from!": {
+                                      "sourceTemplate": "clouds.bicep"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          ],
+                          "parameters": {
+                            "hubsub": {
+                              "type": "string"
+                            },
+                            "hubgroup": {
+                              "type": "string"
+                            },
+                            "extversion": {
+                              "type": "string",
+                              "defaultValue": ""
+                            }
+                          },
+                          "variables": {
+                            "$fxv#0": "IyEvYmluL2Jhc2gKc2V0IC14CgplY2hvICJXYWl0aW5nIGZvciA1IG1pbnV0ZXMgYmVmb3JlIGV4ZWN1dGluZyB0aGUgbm9kZSBqb2luIHNjcmlwdC4uLiIKc2xlZXAgMzAwCmVjaG8gIkV4ZWN1dGluZyB0aGUgYWN0dWFsIHNjcmlwdCBub3cuLi4iCgpjb3VudGVyPTAKSzhTX0hPU1ROQU1FPSQxClNUQVRJQ19TQV9IT1NUTkFNRT0kMgp3aGlsZSAhIG5zbG9va3VwICR7U1RBVElDX1NBX0hPU1ROQU1FfSAmPiAvZGV2L251bGwKZG8KICAgIGNvdW50ZXI9JCgoY291bnRlcisxKSkKICAgIGlmIFsgJGNvdW50ZXIgLWdlIDYwMCBdOyB0aGVuCiAgICAgICAgZWNobyAiRmFpbGVkIGRuc2xvb2t1cCBmb3IgJHtTVEFUSUNfU0FfSE9TVE5BTUV9IC0gRE5TIGlzIG5vdCByZWFkeSBhZnRlciB3YWl0aW5nIGZvciAxMCBtaW51dGVzLiIKICAgICAgICBleGl0IDEKICAgIGZpCiAgICBlY2hvICJXYWl0aW5nIGZvciBETlMuLi4iCiAgICBzbGVlcCAxCmRvbmUKZWNobyAiRE5TIGlzIHJlYWR5ISIK",
+                            "$fxv#1": "IyEvYmluL2Jhc2gKCiMgRm9yIGNvbnNpc3RlbmN5IHNha2UgaW5zdGFsbCB0aGUgQXp1cmUgQ0EgY2VydGlmaWNhdGVzIG9uIHRoZSBub2RlCiMgcmVnYXJkbGVzcyBvZiB3aGV0aGVyIG9yIG5vdCB3ZSBhcmUgaW4gdGhlIEFHQwoKZWNobyAiSU5TVEFMTElORyBBWlVSRSBDQSBDRVJUSUZJQ0FURVMuLi4iCnN1ZG8gbWtkaXIgLXAgL3Jvb3QvQXp1cmVDQUNlcnRpZmljYXRlcwojIGh0dHA6Ly8xNjguNjMuMTI5LjE2IGlzIGEgY29uc3RhbnQgZm9yIHRoZSBob3N0J3Mgd2lyZXNlcnZlciBlbmRwb2ludApjZXJ0cz0kKGN1cmwgImh0dHA6Ly8xNjguNjMuMTI5LjE2L21hY2hpbmU/Y29tcD1hY21zcGFja2FnZSZ0eXBlPWNhY2VydGlmaWNhdGVzJmV4dD1qc29uIikKaWYgWyAteiAiJGNlcnRzIiBdOyB0aGVuCiAgICBlY2hvICJGYWlsZWQgdG8gcmV0cmlldmUgY2VydGlmaWNhdGVzIGZyb20gdGhlIHdpcmVzZXJ2ZXIgZW5kcG9pbnQuIgogICAgZXhpdCAxCmZpCklGUz0kJ1xyXG4nCmNlcnROYW1lcz0oJChlY2hvICRjZXJ0cyB8IGdyZXAgLW9QICcoPzw9TmFtZVwiOiBcIilbXlwiXSonKSkKY2VydEJvZGllcz0oJChlY2hvICRjZXJ0cyB8IGdyZXAgLW9QICcoPzw9Q2VydEJvZHlcIjogXCIpW15cIl0qJykpCmZvciBpIGluICR7IWNlcnRCb2RpZXNbQF19OyBkbwogICAgIyBUaGlzIGxpbmUgYWRkcyB0aGUgY2VydCB0byAvcm9vdC9BenVyZUNBQ2VydGlmaWNhdGVzIGFuZCByZXBsYWNlcyB0aGUgLmNlciBvciBtaXNzaW5nIGZpbGUgZXh0ZW5zaW9uIHdpdGggdGhlIC5jcnQgZXh0ZW5zaW9uLgogICAgIyBJdCBhbHNvIHJlcGxhY2VzIGFueSBXaW5kb3dzIGxpbmUgZW5kaW5ncyB3aXRoIFVuaXggb25lcy4KICAgIGVjaG8gJHtjZXJ0Qm9kaWVzWyRpXX0gfCBzZWQgJ3MvXFxyXFxuL1xuL2cnIHwgc2VkICdzL1xcLy9nJyA+ICIvcm9vdC9BenVyZUNBQ2VydGlmaWNhdGVzLyQoZWNobyAke2NlcnROYW1lc1skaV19IHwgc2VkICdzLy5jZXIvLmNydC9nJyB8IHNlZCAncy9cLlteLl0qJC8uY3J0Ji87dDtzLyQvLmNydC8nKSIKZG9uZQpJRlM9JElGU19iYWNrdXAKc3VkbyBjcCAvcm9vdC9BenVyZUNBQ2VydGlmaWNhdGVzLyouY3J0IC91c3IvbG9jYWwvc2hhcmUvY2EtY2VydGlmaWNhdGVzLwpzdWRvIHVwZGF0ZS1jYS1jZXJ0aWZpY2F0ZXMKZWNobyAiQVpVUkUgQ0EgQ0VSVElGSUNBVEVTIElOU1RBTExFRC4i",
+                            "$fxv#2": "IyEvYmluL2Jhc2gKc2V0IC14ZQoKTkVFRF9SQUlEPSIkMSIKQU1EX0dQVT0iJDIiCkxVU1RSRV9FTkFCTEU9ImZhbHNlIgppZiBbWyAkIyA9PSAzIF1dCnRoZW4KICBMVVNUUkVfRU5BQkxFPSIkMyIKZmkKCnRlZSAvZXRjL3N5c3RlbWQvc3lzdGVtL2NvbmZpZy5zZXJ2aWNlID4gL2Rldi9udWxsIDw8RU9GCltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldAoKW1VuaXRdCkRlc2NyaXB0aW9uPWNvbmZpZyBzZXR1cApEZWZhdWx0RGVwZW5kZW5jaWVzPW5vCkJlZm9yZT1rdWJlbGV0LnNlcnZpY2UKRU9GCgppZiBbWyAkTkVFRF9SQUlEID09ICJ0cnVlIiBdXQp0aGVuCiAgICBlY2hvICJCaW5kc1RvPXJhaWQtc2V0dXAuc2VydmljZSIgPj4gL2V0Yy9zeXN0ZW1kL3N5c3RlbS9jb25maWcuc2VydmljZQogICAgZWNobyAiQWZ0ZXI9cmFpZC1zZXR1cC5zZXJ2aWNlIiA+PiAvZXRjL3N5c3RlbWQvc3lzdGVtL2NvbmZpZy5zZXJ2aWNlCmZpCgppZiBbWyAkQU1EX0dQVSA9PSAidHJ1ZSIgXV0KdGhlbgogICAgZWNobyAiQWZ0ZXI9cm9jbXN0YXJ0dXAuc2VydmljZSIgPj4gL2V0Yy9zeXN0ZW1kL3N5c3RlbS9jb25maWcuc2VydmljZQpmaQoKZWNobyAiW1NlcnZpY2VdIiA+PiAvZXRjL3N5c3RlbWQvc3lzdGVtL2NvbmZpZy5zZXJ2aWNlCgppZiBbWyAkTFVTVFJFX0VOQUJMRSA9PSAiZmFsc2UiIF1dCnRoZW4KICBlY2hvICJUaW1lb3V0U2VjPTM2MCIgPj4gL2V0Yy9zeXN0ZW1kL3N5c3RlbS9jb25maWcuc2VydmljZQplbHNlCiAgZWNobyAiVGltZW91dFNlYz0xODAwIiA+PiAvZXRjL3N5c3RlbWQvc3lzdGVtL2NvbmZpZy5zZXJ2aWNlCmZpCmVjaG8gIkV4ZWNTdGFydD0vdXNyL2Jpbi9zbGVlcCBpbmZpbml0eSIgPj4gL2V0Yy9zeXN0ZW1kL3N5c3RlbS9jb25maWcuc2VydmljZQoKaWYgW1sgJEFNRF9HUFUgPT0gInRydWUiIF1dCnRoZW4KICAgIGVjaG8gIkV4ZWNTdGFydFByZT0vYmluL2Jhc2ggLWMgXCJyZXQ9XCQoY2F0IC9wcm9jL3VwdGltZSB8IGF3ayAne3ByaW50IFwkMX0nKTsgaWYgZWNobyBcJHJldCc8JzYwMCB8IGJjIC1sIHwgZ3JlcCAxOyB0aGVuIHNsZWVwIDVtOyBmaVwiIiA+PiAvZXRjL3N5c3RlbWQvc3lzdGVtL2NvbmZpZy5zZXJ2aWNlCmZpCgppZiBbWyAkTFVTVFJFX0VOQUJMRSA9PSAidHJ1ZSIgXV0KdGhlbgogICAgZWNobyAiRXhlY1N0YXJ0UHJlPS9iaW4vYmFzaCAtYyBcIndoaWxlIHRydWU7ZG8gaWYgW1sgLWYgL2V0Yy9ERE4uRklSU1QgXV07IHRoZW4gc2xlZXAgMTA7IGVsc2UgZXhpdCAwIDtmaTtkb25lXCIiID4+IC9ldGMvc3lzdGVtZC9zeXN0ZW0vY29uZmlnLnNlcnZpY2UKZmkKCnN5c3RlbWN0bCBlbmFibGUgY29uZmlnCg==",
+                            "$fxv#3": "IyEvYmluL2Jhc2gKc2V0IC14ZQoKU1RBVElDX1NBX1BBVEg9IiQxIgpSVU5DX1ZFUlNJT049IiQyIgpDT05UQUlORVJEX1ZFUlNJT049IiQzIgpNQ1JIT1NUTkFNRT0iJDQiCkRFRkFVTFRfUlVOVElNRT0iJDUiCgpta2RpciAtcCAvZXRjL2NvbnRhaW5lcmQKbWtkaXIgLXAgL3Zhci9saWIvY29udGFpbmVyZAoKCmN1cmwgLW8gcnVuYyAtTCAke1NUQVRJQ19TQV9QQVRIfS9wdWJsaWMvcnVuYy92JHtSVU5DX1ZFUlNJT059L3J1bmMKaW5zdGFsbCAtbSAwNTU1IHJ1bmMgL3Vzci9iaW4vcnVuYwpybSBydW5jCgpjdXJsIC1MTyAke1NUQVRJQ19TQV9QQVRIfS9wdWJsaWMvY29udGFpbmVyZC92JHtDT05UQUlORVJEX1ZFUlNJT059L2NvbnRhaW5lcmQudGFyLmd6CiMgaWYgdGhlIGZpbGUgaXMgYSBwb3NpeCBhcmNoaXZlLCB1bnRhciBpdCB0aGF0IHdheQojIHdvcmthcm91bmQgdG8gaW5jb3JyZWN0IGZpbGV0eXBlIGluIGFnYyBjdXJyZW50bHkuIFRoaXMgbWF5IGJlIGR1ZSB0byBob3cgdGhlIGFyY2hpdmUgd2FzIG9idGFpbmVkIC0gZnJvbSBSZXBvRGVwb3QKIyByYXRoZXIgdGhhbiBzdHJhaWdodCBmcm9tIHRoZSBpbnRlcm5ldC4gVGhlcmUgaXMgb3V0c3RhbmRpbmcgd29yayB0byBzdHJlYW1saW5lIGhvdyAzcCBiaW5hcmllcyBhcmUgCiMgZGVsaXZlcmVkIHRvIHRoZSBhaXJnYXAsIGJ1dCBubyBFVEEgb24gdGhpcyBjdXJyZW50bHkgdW50aWwgaXQgaXMgcHJpb3JpdGl6ZWQuIAojIGh0dHBzOi8vbXNkYXRhLnZpc3VhbHN0dWRpby5jb20vVmllbm5hL19zcHJpbnRzL2JhY2tsb2cvUm9ja2xhbmQlMjBDcmVlay9WaWVubmEvUm9ja2xhbmQlMjBDcmVlay9CYWNrbG9nJTIwSXRlbXM/U3lzdGVtLkFzc2lnbmVkVG89JTQwbWUmd29ya2l0ZW09MzE0ODQ5MgppZiBmaWxlIGNvbnRhaW5lcmQudGFyLmd6IHwgZ3JlcCAtcSAiUE9TSVggdGFyIGFyY2hpdmUiOyB0aGVuCiAgICBlY2hvICJQT1NJWCBhcmNoaXZlIgogICAgdGFyIC14ZiBjb250YWluZXJkLnRhci5neiAtQyAvdXNyCmVsc2UKICAgICMgaWYgdGhlIGZpbGUgaXMgYSBnemlwIGFyY2hpdmUsIHVudGFyIGl0IHRoYXQgd2F5CiAgICBlY2hvICJHWklQIGFyY2hpdmUiCiAgICB0YXIgLXh2emYgY29udGFpbmVyZC50YXIuZ3ogLUMgL3VzcgpmaQpybSBjb250YWluZXJkLnRhci5negoKdGVlIC9ldGMvY29udGFpbmVyZC9jb25maWcudG9tbCA+IC9kZXYvbnVsbCA8PEVPRgp2ZXJzaW9uID0gMgpvb21fc2NvcmUgPSAwCltwbHVnaW5zLiJpby5jb250YWluZXJkLmdycGMudjEuY3JpIl0KICAgICAgICBzYW5kYm94X2ltYWdlID0gIiRNQ1JIT1NUTkFNRS9vc3Mva3ViZXJuZXRlcy9wYXVzZTozLjYiCiAgICAgICAgW3BsdWdpbnMuImlvLmNvbnRhaW5lcmQuZ3JwYy52MS5jcmkiLmNvbnRhaW5lcmRdCiAgICAgICAgICAgICAgICBkZWZhdWx0X3J1bnRpbWVfbmFtZSA9ICIkREVGQVVMVF9SVU5USU1FIgogICAgICAgICAgICAgICAgW3BsdWdpbnMuImlvLmNvbnRhaW5lcmQuZ3JwYy52MS5jcmkiLmNvbnRhaW5lcmQucnVudGltZXMucnVuY10KICAgICAgICAgICAgICAgICAgICAgICAgcnVudGltZV90eXBlID0gImlvLmNvbnRhaW5lcmQucnVuYy52MiIKICAgICAgICAgICAgICAgIFtwbHVnaW5zLiJpby5jb250YWluZXJkLmdycGMudjEuY3JpIi5jb250YWluZXJkLnJ1bnRpbWVzLnJ1bmMub3B0aW9uc10KICAgICAgICAgICAgICAgICAgICAgICAgQmluYXJ5TmFtZSA9ICIvdXNyL2Jpbi9ydW5jIgogICAgICAgICAgICAgICAgICAgICAgICBTeXN0ZW1kQ2dyb3VwID0gdHJ1ZQogICAgICAgICAgICAgICAgW3BsdWdpbnMuImlvLmNvbnRhaW5lcmQuZ3JwYy52MS5jcmkiLmNvbnRhaW5lcmQucnVudGltZXMubnZpZGlhXQogICAgICAgICAgICAgICAgICAgICAgICBwcml2aWxlZ2VkX3dpdGhvdXRfaG9zdF9kZXZpY2VzID0gZmFsc2UKICAgICAgICAgICAgICAgICAgICAgICAgcnVudGltZV9lbmdpbmUgPSAiIgogICAgICAgICAgICAgICAgICAgICAgICBydW50aW1lX3Jvb3QgPSAiIgogICAgICAgICAgICAgICAgICAgICAgICBydW50aW1lX3R5cGUgPSAiaW8uY29udGFpbmVyZC5ydW5jLnYxIgogICAgICAgICAgICAgICAgW3BsdWdpbnMuImlvLmNvbnRhaW5lcmQuZ3JwYy52MS5jcmkiLmNvbnRhaW5lcmQucnVudGltZXMubnZpZGlhLm9wdGlvbnNdCiAgICAgICAgICAgICAgICAgICAgICAgIEJpbmFyeU5hbWUgPSAiL3Vzci9iaW4vbnZpZGlhLWNvbnRhaW5lci1ydW50aW1lIgogICAgICAgICAgICAgICAgICAgICAgICBTeXN0ZW1kQ2dyb3VwID0gdHJ1ZQogICAgICAgIFtwbHVnaW5zLiJpby5jb250YWluZXJkLmdycGMudjEuY3JpIi5yZWdpc3RyeV0KICAgICAgICAgICAgICAgIGNvbmZpZ19wYXRoID0gIi9ldGMvY29udGFpbmVyZC9jZXJ0cy5kIgogICAgICAgIFtwbHVnaW5zLiJpby5jb250YWluZXJkLmdycGMudjEuY3JpIi5yZWdpc3RyeS5oZWFkZXJzXQogICAgICAgICAgICAgICAgWC1NZXRhLVNvdXJjZS1DbGllbnQgPSBbImF6dXJlL2FrcyJdClttZXRyaWNzXQogICAgICAgIGFkZHJlc3MgPSAiMC4wLjAuMDoxMDI1NyIKRU9GCgoKdGVlIC9ldGMvc3lzdGVtZC9zeXN0ZW0vY29udGFpbmVyZC5zZXJ2aWNlID4gL2Rldi9udWxsIDw8RU9GCltVbml0XQpEZXNjcmlwdGlvbj1jb250YWluZXJkIGNvbnRhaW5lciBydW50aW1lCkRvY3VtZW50YXRpb249aHR0cHM6Ly9jb250YWluZXJkLmlvCkFmdGVyPW5ldHdvcmsudGFyZ2V0IGxvY2FsLWZzLnRhcmdldApbU2VydmljZV0KRXhlY1N0YXJ0UHJlPS0vc2Jpbi9tb2Rwcm9iZSBvdmVybGF5CkV4ZWNTdGFydD0vdXNyL2Jpbi9jb250YWluZXJkClR5cGU9bm90aWZ5CkRlbGVnYXRlPXllcwpLaWxsTW9kZT1wcm9jZXNzClJlc3RhcnQ9YWx3YXlzClJlc3RhcnRTZWM9NQojIEhhdmluZyBub24temVybyBMaW1pdCpzIGNhdXNlcyBwZXJmb3JtYW5jZSBwcm9ibGVtcyBkdWUgdG8gYWNjb3VudGluZyBvdmVyaGVhZAojIGluIHRoZSBrZXJuZWwuIFdlIHJlY29tbWVuZCB1c2luZyBjZ3JvdXBzIHRvIGRvIGNvbnRhaW5lci1sb2NhbCBhY2NvdW50aW5nLgpMaW1pdE5QUk9DPWluZmluaXR5CkxpbWl0Q09SRT1pbmZpbml0eQpMaW1pdE5PRklMRT1pbmZpbml0eQpMaW1pdE1FTUxPQ0s9aW5maW5pdHkKIyBDb21tZW50IFRhc2tzTWF4IGlmIHlvdXIgc3lzdGVtZCB2ZXJzaW9uIGRvZXMgbm90IHN1cHBvcnRzIGl0LgojIE9ubHkgc3lzdGVtZCAyMjYgYW5kIGFib3ZlIHN1cHBvcnQgdGhpcyB2ZXJzaW9uLgpUYXNrc01heD1pbmZpbml0eQpPT01TY29yZUFkanVzdD0tOTk5CltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldApFT0YKCnN5c3RlbWN0bCBlbmFibGUgY29udGFpbmVyZA==",
+                            "$fxv#4": "IyEvYmluL2Jhc2gKc2V0IC14ZQoKQUtTX0ZRRE49JDEKQk9PVFNUUkFQX0NMSUVOVF9JRD0kMgpTVEFUSUNfU0FfUEFUSD0kMwpLVUJFTE9HSU5fVkVSU0lPTj0kNAoKY3VybCAtTE8gJHtTVEFUSUNfU0FfUEFUSH0vcHVibGljL2t1YmVsb2dpbi92JHtLVUJFTE9HSU5fVkVSU0lPTn0va3ViZWxvZ2luLnRhci5negp0YXIgLXh2emYga3ViZWxvZ2luLnRhci5negptdiBrdWJlbG9naW4gL3Vzci9sb2NhbC9iaW4Kcm0ga3ViZWxvZ2luLnRhci5negoKbWtkaXIgLXAgL2V0Yy9rdWJlcm5ldGVzCgojIHNldHVwIGJvb3RzdHJhcCBrdWJlY29uZmlnCiMgbm90ZSwgc2luY2Ugd2UncmUgdXNpbmcgTVNJIGxvZ2luLCB0aGUgJ2Vudmlyb25tZW50JyBiZWluZyBoYXJkY29kZWQgdG8gQXp1cmVQdWJsaWNDbG91ZAojIGRvZXNuJ3QgbWF0dGVyLCBzaW5jZSBrdWJlbGV0IHdpbGwganVzdCBncmFiIGEgdG9rZW4gZnJvbSB0aGUgTVNJIGVuZHBvaW50CiMgc28gbm8gbmVlZCB0byBwYXJhbWV0cml6ZSAnLS1lbnZpcm9ubWVudCcKdGVlIC9ldGMva3ViZXJuZXRlcy9ib290c3RyYXAta3ViZWNvbmZpZyA+IC9kZXYvbnVsbCA8PEVPRgphcGlWZXJzaW9uOiB2MQpraW5kOiBDb25maWcKY2x1c3RlcnM6Ci0gbmFtZTogbG9jYWxjbHVzdGVyCiAgY2x1c3RlcjoKICAgIGNlcnRpZmljYXRlLWF1dGhvcml0eTogL2V0Yy9rdWJlcm5ldGVzL2NlcnRzL2NhLmNydAogICAgc2VydmVyOiAiaHR0cHM6Ly8kQUtTX0ZRRE4iCnVzZXJzOgotIG5hbWU6IGt1YmVsZXQtYm9vdHN0cmFwCiAgdXNlcjoKICAgIGV4ZWM6CiAgICAgIGFwaVZlcnNpb246IGNsaWVudC5hdXRoZW50aWNhdGlvbi5rOHMuaW8vdjFiZXRhMQogICAgICBhcmdzOgogICAgICAtIGdldC10b2tlbgogICAgICAtIC0tZW52aXJvbm1lbnQKICAgICAgLSBBenVyZVB1YmxpY0Nsb3VkCiAgICAgIC0gLS1zZXJ2ZXItaWQKICAgICAgLSA2ZGFlNDJmOC00MzY4LTQ2NzgtOTRmZi0zOTYwZTI4ZTM2MzAKICAgICAgLSAtLWxvZ2luCiAgICAgIC0gbXNpCiAgICAgIC0gLS1jbGllbnQtaWQKICAgICAgLSAkQk9PVFNUUkFQX0NMSUVOVF9JRAogICAgICBjb21tYW5kOiBrdWJlbG9naW4KICAgICAgcHJvdmlkZUNsdXN0ZXJJbmZvOiBmYWxzZQpjb250ZXh0czoKLSBjb250ZXh0OgogICAgY2x1c3RlcjogbG9jYWxjbHVzdGVyCiAgICB1c2VyOiBrdWJlbGV0LWJvb3RzdHJhcAogIG5hbWU6IGJvb3RzdHJhcC1jb250ZXh0CmN1cnJlbnQtY29udGV4dDogYm9vdHN0cmFwLWNvbnRleHQKRU9G",
+                            "$fxv#5": "IyEvYmluL2Jhc2gKc2V0IC14ZQoKIyBzZWUgLi4vLi4vcHJvdmlzaW9uc2NyaXB0LmJpY2VwIGZvciB0aGUgb3JkZXIgb2YgcGFyYW1zCktVQkVfVkVSU0lPTj0kMQpBS1NfRlFETj0kMgpLVUJFX0NBX0NFUlQ9JDMKU1RBVElDX1NBX1BBVEg9JDQKSU5TVEFOQ0VfVFlQRT0kNQoKTk9ERV9OQU1FPSQoaG9zdG5hbWUpCgpta2RpciAtcCAvdmFyL2xpYi9jbmkKbWtkaXIgLXAgL29wdC9jbmkvYmluCm1rZGlyIC1wIC9ldGMvY25pL25ldC5kCm1rZGlyIC1wIC9ldGMva3ViZXJuZXRlcy92b2x1bWVwbHVnaW5zCm1rZGlyIC1wIC9ldGMva3ViZXJuZXRlcy9jZXJ0cwpta2RpciAtcCAvZXRjL3N5c3RlbWQvc3lzdGVtL2t1YmVsZXQuc2VydmljZS5kCm1rZGlyIC1wIC92YXIvbGliL2t1YmVsZXQKCgpLVUJFTEVUX0NBPSIvZXRjL2t1YmVybmV0ZXMvY2VydHMvY2EuY3J0Igp0b3VjaCAiJHtLVUJFTEVUX0NBfSIKY2htb2QgMDYwMCAiJHtLVUJFTEVUX0NBfSIKY2hvd24gcm9vdDpyb290ICIke0tVQkVMRVRfQ0F9IgplY2hvICRLVUJFX0NBX0NFUlQgfCBiYXNlNjQgLWQgPiAvZXRjL2t1YmVybmV0ZXMvY2VydHMvY2EuY3J0CgpLVUJFTEVUX1NFUlZFUl9QUklWQVRFX0tFWV9QQVRIPSIvZXRjL2t1YmVybmV0ZXMvY2VydHMva3ViZWxldHNlcnZlci5rZXkiCktVQkVMRVRfU0VSVkVSX0NFUlRfUEFUSD0iL2V0Yy9rdWJlcm5ldGVzL2NlcnRzL2t1YmVsZXRzZXJ2ZXIuY3J0IgpvcGVuc3NsIGdlbnJzYSAtb3V0ICRLVUJFTEVUX1NFUlZFUl9QUklWQVRFX0tFWV9QQVRIIDQwOTYKb3BlbnNzbCByZXEgLW5ldyAteDUwOSAtZGF5cyA3MzAwIC1rZXkgJEtVQkVMRVRfU0VSVkVSX1BSSVZBVEVfS0VZX1BBVEggLW91dCAkS1VCRUxFVF9TRVJWRVJfQ0VSVF9QQVRIIC1zdWJqICIvQ049c3lzdGVtOm5vZGU6JHtOT0RFX05BTUV9IgoKY3VybCAtTE8gJHtTVEFUSUNfU0FfUEFUSH0vcHVibGljL2s4cy92JHtLVUJFX1ZFUlNJT059L2t1YmVybmV0ZXMtbm9kZS1saW51eC1hbWQ2NC50YXIuZ3oKaWYgWyAkPyAtbmUgMCBdOyB0aGVuCiAgICBlY2hvICJGYWlsZWQgdG8gZG93bmxvYWQga3ViZXJuZXRlcy1ub2RlLWxpbnV4LWFtZDY0LnRhci5neiIKICAgIGV4aXQgMQpmaQp0YXIgLXh2emYga3ViZXJuZXRlcy1ub2RlLWxpbnV4LWFtZDY0LnRhci5neiBrdWJlcm5ldGVzL25vZGUvYmluL2t1YmVsZXQKbXYga3ViZXJuZXRlcy9ub2RlL2Jpbi9rdWJlbGV0IC91c3IvbG9jYWwvYmluCnJtIGt1YmVybmV0ZXMtbm9kZS1saW51eC1hbWQ2NC50YXIuZ3oKCiMgc2V0dXAgd2ljcmVkCm1rZGlyIC1wIC9vcHQvaW1hZ2UtY3JlZC1wcm92aWRlci9jb25maWcvCm1rZGlyIC1wIC9vcHQvaW1hZ2UtY3JlZC1wcm92aWRlci9iaW4vCgp0b3VjaCAvb3B0L2ltYWdlLWNyZWQtcHJvdmlkZXIvYmluL3dvcmtsb2FkLWlkZW50aXR5LXRva2VuCmNobW9kICt4IC9vcHQvaW1hZ2UtY3JlZC1wcm92aWRlci9iaW4vd29ya2xvYWQtaWRlbnRpdHktdG9rZW4KCnRlZSAvb3B0L2ltYWdlLWNyZWQtcHJvdmlkZXIvY29uZmlnL3dvcmtsb2FkLWlkZW50aXR5LXRva2VuLnlhbWwgPiAvZGV2L251bGwgPDxFT0YKa2luZDogQ3JlZGVudGlhbFByb3ZpZGVyQ29uZmlnCmFwaVZlcnNpb246IGt1YmVsZXQuY29uZmlnLms4cy5pby92MQpwcm92aWRlcnM6Ci0gbmFtZTogd29ya2xvYWQtaWRlbnRpdHktdG9rZW4KICBhcGlWZXJzaW9uOiBjcmVkZW50aWFscHJvdmlkZXIua3ViZWxldC5rOHMuaW8vdjEKICBtYXRjaEltYWdlczoKICAtICIqLmF6dXJlY3IuaW8iCiAgLSAiKi5henVyZWNyLmNuIgogIC0gIiouYXp1cmVjci51cyIKICAtICIqLmF6dXJlY3IubWljcm9zb2Z0LnNjbG91ZCIKICAtICIqLmF6dXJlY3IuZWFnbGV4LmljLmdvdiIKICBhcmdzOgogIC0gL3Zhci9ydW4vd29ya2xvYWQtaWRlbnRpdHktdG9rZW4uc29jawogIGRlZmF1bHRDYWNoZUR1cmF0aW9uOiAxbQpFT0YKIyBlbmQgc2V0dXAgd2ljcmVkCgojIHNldHVwIGt1YmVsZXQgY29uZmlnCkROU19JUD0iMTAuMC4wLjEwIgp0ZWUgL2V0Yy9kZWZhdWx0L2t1YmVsZXQgPiAvZGV2L251bGwgPDxFT0YKS1VCRUxFVF9OT0RFX0xBQkVMUz0ia3ViZXJuZXRlcy5henVyZS5jb20vbW9kZT1zeXN0ZW0sa3ViZXJuZXRlcy5henVyZS5jb20vcm9sZT1hZ2VudCxub2RlLmt1YmVybmV0ZXMuaW8vZXhjbHVkZS1mcm9tLWV4dGVybmFsLWxvYWQtYmFsYW5jZXJzPXRydWUsa3ViZXJuZXRlcy5henVyZS5jb20vbWFuYWdlZD1mYWxzZSxrdWJlcm5ldGVzLmlvL29zPWxpbnV4LG5vZGUua3ViZXJuZXRlcy5pby9pbnN0YW5jZS10eXBlPSRJTlNUQU5DRV9UWVBFLFJlcGFpclN0YXR1cz1WYWxpZGF0ZSIKS1VCRUxFVF9GTEFHUz0iLS1hZGRyZXNzPTAuMC4wLjAgLS1hbm9ueW1vdXMtYXV0aD1mYWxzZSAtLWF1dGhlbnRpY2F0aW9uLXRva2VuLXdlYmhvb2s9dHJ1ZSAtLWF1dGhvcml6YXRpb24tbW9kZT1XZWJob29rIC0tY2dyb3VwLWRyaXZlcj1zeXN0ZW1kIC0tY2dyb3Vwcy1wZXItcW9zPXRydWUgLS1jbGllbnQtY2EtZmlsZT0vZXRjL2t1YmVybmV0ZXMvY2VydHMvY2EuY3J0IC0tY2x1c3Rlci1kbnM9JHtETlNfSVB9IC0tY2x1c3Rlci1kb21haW49Y2x1c3Rlci5sb2NhbCAtLWVuZm9yY2Utbm9kZS1hbGxvY2F0YWJsZT1wb2RzIC0tZXZlbnQtcXBzPTAgLS1ldmljdGlvbi1oYXJkPW1lbW9yeS5hdmFpbGFibGU8NzUwTWksbm9kZWZzLmF2YWlsYWJsZTwxMCUsbm9kZWZzLmlub2Rlc0ZyZWU8NSUgIC0taW1hZ2UtZ2MtaGlnaC10aHJlc2hvbGQ9NjUgLS1pbWFnZS1nYy1sb3ctdGhyZXNob2xkPTU1IC0ta2VlcC10ZXJtaW5hdGVkLXBvZC12b2x1bWVzPWZhbHNlIC0ta3ViZS1yZXNlcnZlZD1jcHU9MTgwbSxtZW1vcnk9MzM5OU1pLHBpZD0xMDAwIC0ta3ViZWNvbmZpZz0vdmFyL2xpYi9rdWJlbGV0L2t1YmVjb25maWcgLS1tYXgtcG9kcz0xMTAgLS1ub2RlLXN0YXR1cy11cGRhdGUtZnJlcXVlbmN5PTEwcyAtLXBvZC1pbmZyYS1jb250YWluZXItaW1hZ2U9bWNyLm1pY3Jvc29mdC5jb20vb3NzL2t1YmVybmV0ZXMvcGF1c2U6My42IC0tcHJvdGVjdC1rZXJuZWwtZGVmYXVsdHM9dHJ1ZSAtLXJlYWQtb25seS1wb3J0PTAgLS1ldmljdGlvbi1oYXJkPW1lbW9yeS5hdmFpbGFibGU8NzUwTWksbm9kZWZzLmF2YWlsYWJsZTwxMCUsbm9kZWZzLmlub2Rlc0ZyZWU8NSUscGlkLmF2YWlsYWJsZTwyMDAwIC0tcm90YXRlLWNlcnRpZmljYXRlcz10cnVlIC0tc3RyZWFtaW5nLWNvbm5lY3Rpb24taWRsZS10aW1lb3V0PTRoIC0tdGxzLWNlcnQtZmlsZT0vZXRjL2t1YmVybmV0ZXMvY2VydHMva3ViZWxldHNlcnZlci5jcnQgLS10bHMtY2lwaGVyLXN1aXRlcz1UTFNfRUNESEVfRUNEU0FfV0lUSF9BRVNfMTI4X0dDTV9TSEEyNTYsVExTX0VDREhFX1JTQV9XSVRIX0FFU18xMjhfR0NNX1NIQTI1NixUTFNfRUNESEVfRUNEU0FfV0lUSF9DSEFDSEEyMF9QT0xZMTMwNSxUTFNfRUNESEVfUlNBX1dJVEhfQUVTXzI1Nl9HQ01fU0hBMzg0LFRMU19FQ0RIRV9SU0FfV0lUSF9DSEFDSEEyMF9QT0xZMTMwNSxUTFNfRUNESEVfRUNEU0FfV0lUSF9BRVNfMjU2X0dDTV9TSEEzODQsVExTX1JTQV9XSVRIX0FFU18yNTZfR0NNX1NIQTM4NCxUTFNfUlNBX1dJVEhfQUVTXzEyOF9HQ01fU0hBMjU2IC0tdGxzLXByaXZhdGUta2V5LWZpbGU9L2V0Yy9rdWJlcm5ldGVzL2NlcnRzL2t1YmVsZXRzZXJ2ZXIua2V5IC0taW1hZ2UtY3JlZGVudGlhbC1wcm92aWRlci1jb25maWc9L29wdC9pbWFnZS1jcmVkLXByb3ZpZGVyL2NvbmZpZy93b3JrbG9hZC1pZGVudGl0eS10b2tlbi55YW1sIC0taW1hZ2UtY3JlZGVudGlhbC1wcm92aWRlci1iaW4tZGlyPS9vcHQvaW1hZ2UtY3JlZC1wcm92aWRlci9iaW4gLS1jb250YWluZXItbG9nLW1heC1zaXplPTVHaSAtLWNvbnRhaW5lci1sb2ctbWF4LWZpbGVzPTIiCkVPRgoKIyBjYW4gc2ltcGxpZnkgdGhpcyArIDIgZm9sbG93aW5nIGZpbGVzIGJ5IG1lcmdpbmcgdG9nZXRoZXIKdGVlIC9ldGMvc3lzdGVtZC9zeXN0ZW0va3ViZWxldC5zZXJ2aWNlLmQvMTAtY29udGFpbmVyZC5jb25mID4gL2Rldi9udWxsIDw8J0VPRicKW1NlcnZpY2VdCkVudmlyb25tZW50PUtVQkVMRVRfQ09OVEFJTkVSRF9GTEFHUz0iLS1ydW50aW1lLXJlcXVlc3QtdGltZW91dD0xNW0gLS1jb250YWluZXItcnVudGltZS1lbmRwb2ludD11bml4Oi8vL3J1bi9jb250YWluZXJkL2NvbnRhaW5lcmQuc29jayIKRU9GCgp0ZWUgL2V0Yy9zeXN0ZW1kL3N5c3RlbS9rdWJlbGV0LnNlcnZpY2UuZC8xMC10bHNib290c3RyYXAuY29uZiA+IC9kZXYvbnVsbCA8PCdFT0YnCltTZXJ2aWNlXQpFbnZpcm9ubWVudD1LVUJFTEVUX1RMU19CT09UU1RSQVBfRkxBR1M9Ii0ta3ViZWNvbmZpZyAvdmFyL2xpYi9rdWJlbGV0L2t1YmVjb25maWcgLS1ib290c3RyYXAta3ViZWNvbmZpZyAvZXRjL2t1YmVybmV0ZXMvYm9vdHN0cmFwLWt1YmVjb25maWciCkVPRgoKdGVlIC9ldGMvc3lzdGVtZC9zeXN0ZW0va3ViZWxldC5zZXJ2aWNlID4gL2Rldi9udWxsIDw8J0VPRicKW1VuaXRdCkRlc2NyaXB0aW9uPUt1YmVsZXQKQ29uZGl0aW9uUGF0aEV4aXN0cz0vdXNyL2xvY2FsL2Jpbi9rdWJlbGV0ClJlcXVpcmVzPWNvbnRhaW5lcmQuc2VydmljZQpBZnRlcj1jb250YWluZXJkLnNlcnZpY2UKUmVxdWlyZXM9Y29uZmlnLnNlcnZpY2UKQWZ0ZXI9Y29uZmlnLnNlcnZpY2UKW1NlcnZpY2VdClJlc3RhcnQ9YWx3YXlzCkVudmlyb25tZW50RmlsZT0vZXRjL2RlZmF1bHQva3ViZWxldApTdWNjZXNzRXhpdFN0YXR1cz0xNDMKIyBBY2UgZG9lcyBub3QgcmVjYWxsIHdoeSB0aGlzIGlzIGRvbmUKRXhlY1N0YXJ0UHJlPS9iaW4vYmFzaCAtYyAiaWYgWyAkKG1vdW50IHwgZ3JlcCBcIi92YXIvbGliL2t1YmVsZXRcIiB8IHdjIC1sKSAtbGUgMCBdIDsgdGhlbiAvYmluL21vdW50IC0tYmluZCAvdmFyL2xpYi9rdWJlbGV0IC92YXIvbGliL2t1YmVsZXQgOyBmaSIKVGltZW91dFNlYz0xMjAwCkV4ZWNTdGFydFByZT0vYmluL21vdW50IC0tbWFrZS1zaGFyZWQgL3Zhci9saWIva3ViZWxldApFeGVjU3RhcnRQcmU9LS9zYmluL2VidGFibGVzIC10IG5hdCAtLWxpc3QKRXhlY1N0YXJ0UHJlPS0vc2Jpbi9pcHRhYmxlcyAtdCBuYXQgLS1udW1lcmljIC0tbGlzdApFeGVjU3RhcnQ9L3Vzci9sb2NhbC9iaW4va3ViZWxldCBcCiAgICAgICAgLS1lbmFibGUtc2VydmVyIFwKICAgICAgICAtLW5vZGUtbGFiZWxzPSIke0tVQkVMRVRfTk9ERV9MQUJFTFN9IiBcCiAgICAgICAgLS12PTIgXAogICAgICAgIC0tdm9sdW1lLXBsdWdpbi1kaXI9L2V0Yy9rdWJlcm5ldGVzL3ZvbHVtZXBsdWdpbnMgXAogICAgICAgICRLVUJFTEVUX1RMU19CT09UU1RSQVBfRkxBR1MgXAogICAgICAgICRLVUJFTEVUX0NPTkZJR19GSUxFX0ZMQUdTIFwKICAgICAgICAkS1VCRUxFVF9DT05UQUlORVJEX0ZMQUdTIFwKICAgICAgICAkS1VCRUxFVF9GTEFHUwpbSW5zdGFsbF0KV2FudGVkQnk9bXVsdGktdXNlci50YXJnZXQKRU9GCgp0ZWUgL2V0Yy9zeXNjdGwuZC85OTktc3lzY3RsLWFrcy5jb25mID4gL2Rldi9udWxsIDw8RU9GCiMgY29udGFpbmVyIG5ldHdvcmtpbmcKbmV0LmlwdjQuaXBfZm9yd2FyZCA9IDEKbmV0LmlwdjQuY29uZi5hbGwuZm9yd2FyZGluZyA9IDEKbmV0LmlwdjYuY29uZi5hbGwuZm9yd2FyZGluZyA9IDEKbmV0LmJyaWRnZS5icmlkZ2UtbmYtY2FsbC1pcHRhYmxlcyA9IDEKCiMgcmVmZXIgdG8gaHR0cHM6Ly9naXRodWIuY29tL2t1YmVybmV0ZXMva3ViZXJuZXRlcy9ibG9iLzc1ZDQ1YmRmYzllZWRhMTVmYjU1MGUwMGRhNjYyYzEyZDdkMzc5ODUvcGtnL2t1YmVsZXQvY20vY29udGFpbmVyX21hbmFnZXJfbGludXguZ28jTDM1OS1MMzk3CnZtLm92ZXJjb21taXRfbWVtb3J5ID0gMQprZXJuZWwucGFuaWMgPSAxMAprZXJuZWwucGFuaWNfb25fb29wcyA9IDEKIyB0byBlbnN1cmUgbm9kZSBzdGFiaWxpdHksIHdlIHNldCB0aGlzIHRvIHRoZSBQSURfTUFYX0xJTUlUIG9uIDY0LWJpdCBzeXN0ZW1zOiByZWZlciB0byBodHRwczovL2t1YmVybmV0ZXMuaW8vZG9jcy9jb25jZXB0cy9wb2xpY3kvcGlkLWxpbWl0aW5nLwprZXJuZWwucGlkX21heCA9IDQxOTQzMDQKIyBodHRwczovL2dpdGh1Yi5jb20vQXp1cmUvQUtTL2lzc3Vlcy83NzIKZnMuaW5vdGlmeS5tYXhfdXNlcl93YXRjaGVzID0gMTA0ODU3NgojIFVidW50dSAyMi4wNCBoYXMgaW5vdGlmeV9tYXhfdXNlcl9pbnN0YW5jZXMgc2V0IHRvIDEyOCwgd2hlcmUgYXMgVWJ1bnR1IDE4LjA0IGhhZCAxMDI0Lgpmcy5pbm90aWZ5Lm1heF91c2VyX2luc3RhbmNlcyA9IDEwMjQKCiMgVGhpcyBpcyBhIHBhcnRpYWwgd29ya2Fyb3VuZCB0byB0aGlzIHVwc3RyZWFtIEt1YmVybmV0ZXMgaXNzdWU6CiMgaHR0cHM6Ly9naXRodWIuY29tL2t1YmVybmV0ZXMva3ViZXJuZXRlcy9pc3N1ZXMvNDE5MTYjaXNzdWVjb21tZW50LTMxMjQyODczMQpuZXQuaXB2NC50Y3BfcmV0cmllczI9OApuZXQuY29yZS5tZXNzYWdlX2J1cnN0PTgwCm5ldC5jb3JlLm1lc3NhZ2VfY29zdD00MApuZXQuY29yZS5zb21heGNvbm49MTYzODQKbmV0LmlwdjQudGNwX21heF9zeW5fYmFja2xvZz0xNjM4NApuZXQuaXB2NC5uZWlnaC5kZWZhdWx0LmdjX3RocmVzaDE9NDA5NgpuZXQuaXB2NC5uZWlnaC5kZWZhdWx0LmdjX3RocmVzaDI9ODE5MgpuZXQuaXB2NC5uZWlnaC5kZWZhdWx0LmdjX3RocmVzaDM9MTYzODQKRU9GCnN5c2N0bCAtLXN5c3RlbQoKCnN5c3RlbWN0bCBlbmFibGUga3ViZWxldAoKaWYgW1sgL2V0Yy9yc3lzbG9nLmQvNTAtZGVmYXVsdC5jb25mIF1dCnRoZW4KICAgIGlmICEgZ3JlcCBrdWJlbGV0IC9ldGMvcnN5c2xvZy5kLzUwLWRlZmF1bHQuY29uZgogICAgdGhlbgogICAgICAgIGVjaG8gImlmIFwkcHJvZ3JhbW5hbWUgPT0gJ2t1YmVsZXQnIHRoZW4gL3Zhci9sb2cva3ViZWxldC5sb2ciID4+IC9ldGMvcnN5c2xvZy5kLzUwLWRlZmF1bHQuY29uZgoJCXN5c3RlbWN0bCByZXN0YXJ0IHJzeXNsb2cKICAgIGZpCmZpCg==",
+                            "artifactHostname": "[_1.GetArtifactHostName(tenant().tenantId)]",
+                            "artifactUrl": "[_1.GetArtifactUrl(tenant().tenantId)]",
+                            "mcrUrl": "[_1.GetMcrHostname(tenant().tenantId)]",
+                            "runcVersion": "[_1.GetRuncVersion(tenant().tenantId)]",
+                            "containerdVersion": "[_1.GetContainerdVersion(tenant().tenantId)]",
+                            "kubeLoginVersion": "[_1.GetKubeLoginVersion(tenant().tenantId)]",
+                            "cacertscript": "[format('echo {0} | base64 -d | bash -s ', variables('$fxv#1'))]",
+                            "configscript": "[format('echo {0} | base64 -d | bash -s', variables('$fxv#2'))]",
+                            "containerdscript": "[format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#3'), variables('artifactUrl'), variables('runcVersion'), variables('containerdVersion'), variables('mcrUrl'))]"
+                          },
+                          "resources": {
+                            "aks": {
+                              "existing": true,
+                              "type": "Microsoft.ContainerService/managedClusters",
+                              "apiVersion": "2023-06-01",
+                              "subscriptionId": "[parameters('hubsub')]",
+                              "resourceGroup": "[parameters('hubgroup')]",
+                              "name": "aks"
+                            },
+                            "aksbootstrapid": {
+                              "existing": true,
+                              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+                              "apiVersion": "2023-01-31",
+                              "subscriptionId": "[parameters('hubsub')]",
+                              "resourceGroup": "[parameters('hubgroup')]",
+                              "name": "helm-script-msi3"
+                            }
+                          },
+                          "outputs": {
+                            "scripts": {
+                              "type": "object",
+                              "value": "[reduce(map(items(createObject('Standard_E16s_v3', concat(createArray(format('echo {0} | base64 -d | bash -s {1} {2}', variables('$fxv#0'), reference('aks').fqdn, variables('artifactHostname')), variables('cacertscript'), format('{0} false false', variables('configscript')), format('{0} runc', variables('containerdscript')), format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#4'), reference('aks').fqdn, reference('aksbootstrapid').clientId, variables('artifactUrl'), variables('kubeLoginVersion'))), createArray(format('{0} Standard_E16s_v3 redis', format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#5'), _1.GetK8sVersion(split(reference('aks').kubernetesVersion, '.'), tenant().tenantId), reference('aks').fqdn, split(substring(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), add(indexOf(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), 'certificate-authority-data: '), 28)), '\n')[0], variables('artifactUrl'))))), 'Standard_E8s_v3', concat(createArray(format('echo {0} | base64 -d | bash -s {1} {2}', variables('$fxv#0'), reference('aks').fqdn, variables('artifactHostname')), variables('cacertscript'), format('{0} false false', variables('configscript')), format('{0} runc', variables('containerdscript')), format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#4'), reference('aks').fqdn, reference('aksbootstrapid').clientId, variables('artifactUrl'), variables('kubeLoginVersion'))), createArray(format('{0} Standard_E8s_v3 cpu', format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#5'), _1.GetK8sVersion(split(reference('aks').kubernetesVersion, '.'), tenant().tenantId), reference('aks').fqdn, split(substring(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), add(indexOf(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), 'certificate-authority-data: '), 28)), '\n')[0], variables('artifactUrl'))))), 'Standard_D8s_v3', concat(createArray(format('echo {0} | base64 -d | bash -s {1} {2}', variables('$fxv#0'), reference('aks').fqdn, variables('artifactHostname')), variables('cacertscript'), format('{0} false false', variables('configscript')), format('{0} runc', variables('containerdscript')), format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#4'), reference('aks').fqdn, reference('aksbootstrapid').clientId, variables('artifactUrl'), variables('kubeLoginVersion'))), createArray(format('{0} Standard_D8s_v3 cpu', format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#5'), _1.GetK8sVersion(split(reference('aks').kubernetesVersion, '.'), tenant().tenantId), reference('aks').fqdn, split(substring(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), add(indexOf(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), 'certificate-authority-data: '), 28)), '\n')[0], variables('artifactUrl'))))), 'Standard_D16s_v3', concat(createArray(format('echo {0} | base64 -d | bash -s {1} {2}', variables('$fxv#0'), reference('aks').fqdn, variables('artifactHostname')), variables('cacertscript'), format('{0} false false', variables('configscript')), format('{0} runc', variables('containerdscript')), format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#4'), reference('aks').fqdn, reference('aksbootstrapid').clientId, variables('artifactUrl'), variables('kubeLoginVersion'))), createArray(format('{0} Standard_D16s_v3 cpu', format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#5'), _1.GetK8sVersion(split(reference('aks').kubernetesVersion, '.'), tenant().tenantId), reference('aks').fqdn, split(substring(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), add(indexOf(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), 'certificate-authority-data: '), 28)), '\n')[0], variables('artifactUrl'))))), 'Standard_D32s_v3', concat(createArray(format('echo {0} | base64 -d | bash -s {1} {2}', variables('$fxv#0'), reference('aks').fqdn, variables('artifactHostname')), variables('cacertscript'), format('{0} false false', variables('configscript')), format('{0} runc', variables('containerdscript')), format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#4'), reference('aks').fqdn, reference('aksbootstrapid').clientId, variables('artifactUrl'), variables('kubeLoginVersion'))), createArray(format('{0} Standard_D32s_v3 cpu', format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#5'), _1.GetK8sVersion(split(reference('aks').kubernetesVersion, '.'), tenant().tenantId), reference('aks').fqdn, split(substring(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), add(indexOf(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), 'certificate-authority-data: '), 28)), '\n')[0], variables('artifactUrl'))))), 'Standard_D48s_v3', concat(createArray(format('echo {0} | base64 -d | bash -s {1} {2}', variables('$fxv#0'), reference('aks').fqdn, variables('artifactHostname')), variables('cacertscript'), format('{0} false false', variables('configscript')), format('{0} runc', variables('containerdscript')), format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#4'), reference('aks').fqdn, reference('aksbootstrapid').clientId, variables('artifactUrl'), variables('kubeLoginVersion'))), createArray(format('{0} Standard_D48s_v3 cpu', format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#5'), _1.GetK8sVersion(split(reference('aks').kubernetesVersion, '.'), tenant().tenantId), reference('aks').fqdn, split(substring(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), add(indexOf(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), 'certificate-authority-data: '), 28)), '\n')[0], variables('artifactUrl'))))), 'Standard_D64s_v3', concat(createArray(format('echo {0} | base64 -d | bash -s {1} {2}', variables('$fxv#0'), reference('aks').fqdn, variables('artifactHostname')), variables('cacertscript'), format('{0} false false', variables('configscript')), format('{0} runc', variables('containerdscript')), format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#4'), reference('aks').fqdn, reference('aksbootstrapid').clientId, variables('artifactUrl'), variables('kubeLoginVersion'))), createArray(format('{0} Standard_D64s_v3 cpu', format('echo {0} | base64 -d | bash -s {1} {2} {3} {4}', variables('$fxv#5'), _1.GetK8sVersion(split(reference('aks').kubernetesVersion, '.'), tenant().tenantId), reference('aks').fqdn, split(substring(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), add(indexOf(base64ToString(listClusterUserCredential(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('hubsub'), parameters('hubgroup')), 'Microsoft.ContainerService/managedClusters', 'aks'), '2023-06-01').kubeconfigs[0].value), 'certificate-authority-data: '), 28)), '\n')[0], variables('artifactUrl'))))))), lambda('entity', createObject('key', lambdaVariables('entity').key, 'val', base64(join(concat(createArray('#!/bin/bash', 'set -ex', '[[ -f \"/var/lib/kubelet/kubeconfig\" ]] && echo \"please reimage to trigger newer kube ext\" && exit 0', format('echo NEXUS: {0}, HASH {1}', parameters('extversion'), uniqueString(join(lambdaVariables('entity').value, '\n')))), lambdaVariables('entity').value, createArray('shutdown -r +1', format('echo {0} > /etc/nexus-kube-version', parameters('extversion')))), '\n'))))), createObject(), lambda('cur', 'next', union(lambdaVariables('cur'), createObject(format('{0}', lambdaVariables('next').key), lambdaVariables('next').val))))]"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "vmssDeploymentLogs": {
+              "type": "array",
+              "copy": {
+                "count": "[length(parameters('vmssNames'))]",
+                "input": {
+                  "name": "[parameters('vmssNames')[copyIndex()]]",
+                  "logFile": "[if(parameters('enableLogging'), format('{0}/lin-script-{1}.log', parameters('logFilePath'), parameters('vmssNames')[copyIndex()]), null())]"
+                }
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deploymentScripts', 'aksBYONScript')]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'aksClusterKubeletIdentity')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "fqdn1": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'testResourcesDeployment'), '2022-09-01').outputs.fqdn1.value]"
+    },
+    "fqdn2": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'testResourcesDeployment'), '2022-09-01').outputs.fqdn2.value]"
+    },
+    "salToken": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deploymentScripts', format('ds-subnetdelegator-{0}', uniqueString(resourceGroup().name))), '2023-08-01').outputs.salToken]"
+    },
+    "salToken1": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deploymentScripts', format('ds-subnetdelegator-{0}', uniqueString(resourceGroup().name))), '2023-08-01').outputs.salToken1]"
+    },
+    "dncVMSSLogs": {
+      "type": "array",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'vmssCreationModule'), '2022-09-01').outputs.vmssDeploymentLogs.value]"
+    },
+    "workerVMSSLogs": {
+      "type": "array",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'workerVmssCreationModule'), '2022-09-01').outputs.vmssDeploymentLogs.value]"
+    },
+    "privateIPs": {
+      "type": "array",
+      "value": "[reference(resourceId('Microsoft.Resources/deploymentScripts', 'installSwiftScript'), '2020-10-01').outputs.privateIPs]"
+    },
+    "subnetIds": {
+      "type": "array",
+      "value": "[reference(resourceId('Microsoft.Resources/deploymentScripts', 'installSwiftScript'), '2020-10-01').outputs.subnetIDs]"
+    }
+  }
+}

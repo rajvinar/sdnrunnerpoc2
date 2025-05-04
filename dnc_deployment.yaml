@@ -19,7 +19,7 @@ spec:
       hostNetwork: true
       containers:
         - name: dnc
-          image: acnpublic.azurecr.io/dnc:standalone-09f807af9
+          image: acnsdnrunners.azurecr.io/dnc:standalone-09f807af9
           imagePullPolicy: Always
           args:
             - -stderr=true

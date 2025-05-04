@@ -18,7 +18,7 @@ spec:
       hostNetwork: true
       containers:
         - name: cns-container
-          image: acnpublic.azurecr.io/azure-cns:linux-amd64-v1.6.23-3-g7c218a560
+          image: acnsdnrunners.azurecr.io/azure-cns:linux-amd64-v1.6.23-3-g7c218a560
           imagePullPolicy: IfNotPresent
           args:
             ["-c", "tcp://0.0.0.0:$(CNSPort)", "-t", "$(CNSLogTarget)"]
@@ -46,7 +46,7 @@ spec:
               value: /etc/azure-cns/cns_config.json
       initContainers:
         - name: init-cni-dropgz
-          image: acnpublic.azurecr.io/azure-cni:linux-amd64-v1.6.23-3-g7c218a560
+          image: acnsdnrunners.azurecr.io/azure-cni:linux-amd64-v1.6.23-3-g7c218a560
           imagePullPolicy: IfNotPresent
           command: ["/dropgz"]
           args:

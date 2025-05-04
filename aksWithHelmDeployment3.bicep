@@ -18,21 +18,14 @@ param delegatedSubnet1Name string = 'delegatedSubnet1'
 param dncVMSSNames array = ['dncpool20']
 param workerVMSSNames array = ['linuxpool20', 'linuxpool21']
 
-
-
-
 // TODO: will be different in ame need to check pr
-param subnetDelegatorEnvironment string = 'env-westus-u3h4j'
-param subnetDelegatorName string = 'subnetdelegator-westus-u3h4j'
-param subnetDelegatorRg string = 'subnetdelegator-westus'
+param subnetDelegatorEnvironment string = 'env-eastus2euap-nwwam'
+param subnetDelegatorName string = 'subnetdelegator-eastus2euap-nwwa'
+param subnetDelegatorRg string = 'subnetdelegator-eastus2euap'
 // param subnetDelegatorSubscriptionId string = 'b2f3c0a1-4d5e-4b8e-9f7c-6d5a0f1b2c3d'
-param subnetDelegatorSubscriptionId string = '9b8218f9-902a-4d20-a65c-e98acec5362f'
+param subnetDelegatorSubscriptionId string = '0895de50-30a3-4b75-aada-5b23ebd4e8bc'
 ////////////////
 param msiRg string = 'RunnersIdentities'
-
-
-
-
 
 var dataActions = [
   'Microsoft.DocumentDB/databaseAccounts/readMetadata'
@@ -84,8 +77,6 @@ module roleAssignments './roleAssignmentsInSub.bicep' = {
     principalId: aksClusterKubeletIdentity.properties.principalId
   }
 }
-
-
 
 resource subnetDelegator 'Microsoft.App/containerApps@2024-10-02-preview' existing = {
   name: subnetDelegatorName
@@ -147,6 +138,7 @@ resource outboundIp 'Microsoft.Network/publicIPAddresses@2023-11-01' = {
     publicIPAllocationMethod: 'Static'
   }
 }
+
 resource infraVnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   name: infraVnetName
   location: region
