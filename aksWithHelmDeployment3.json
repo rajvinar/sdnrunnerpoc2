@@ -5,36 +5,41 @@
     "_generator": {
       "name": "bicep",
       "version": "0.34.44.8038",
-      "templateHash": "16921392029490417294"
+      "templateHash": "5156127434561844613"
     }
   },
   "parameters": {
     "clusterName": {
       "type": "string",
+      "defaultValue": "aks",
       "metadata": {
         "description": "Name of the cluster"
       }
     },
     "region": {
       "type": "string",
+      "defaultValue": "eastus2euap",
       "metadata": {
         "description": "Region"
       }
     },
     "rg": {
       "type": "string",
+      "defaultValue": "[resourceGroup().name]",
       "metadata": {
         "description": "Resource Group"
       }
     },
     "cosmosdbName": {
       "type": "string",
+      "defaultValue": "daladb",
       "metadata": {
         "description": "Name of the cosmosdb"
       }
     },
     "subscriptionId": {
       "type": "string",
+      "defaultValue": "[subscription().subscriptionId]",
       "metadata": {
         "description": "Subscription ID"
       }
@@ -114,47 +119,6 @@
   },
   "resources": [
     {
-      "type": "Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions",
-      "apiVersion": "2024-12-01-preview",
-      "name": "[format('{0}/{1}', parameters('cosmosdbName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')), 'DncCosmosDbRbacRole'))]",
-      "properties": {
-        "roleName": "DncCosmosDbRbacRole",
-        "type": "CustomRole",
-        "permissions": [
-          {
-            "dataActions": "[variables('dataActions')]"
-          }
-        ],
-        "assignableScopes": [
-          "[format('{0}', resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')))]"
-        ]
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
-      "apiVersion": "2023-07-31-preview",
-      "name": "aksClusterKubeletIdentity",
-      "location": "[parameters('region')]"
-    },
-    {
-      "type": "Microsoft.DocumentDB/databaseAccounts/tableRoleAssignments",
-      "apiVersion": "2024-12-01-preview",
-      "name": "[format('{0}/{1}', parameters('cosmosdbName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')), resourceId('Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions', parameters('cosmosdbName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')), 'DncCosmosDbRbacRole')), 'aksClusterKubeletIdentity', 'roleAssignment'))]",
-      "properties": {
-        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'aksClusterKubeletIdentity'), '2023-07-31-preview').principalId]",
-        "roleDefinitionId": "[resourceId('Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions', parameters('cosmosdbName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')), 'DncCosmosDbRbacRole'))]",
-        "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName'))]"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'aksClusterKubeletIdentity')]",
-        "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName'))]",
-        "[resourceId('Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions', parameters('cosmosdbName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')), 'DncCosmosDbRbacRole'))]"
-      ]
-    },
-    {
       "type": "Microsoft.Network/publicIPAddresses",
       "apiVersion": "2023-11-01",
       "name": "[format('aciNatGw-ip-{0}', uniqueString(resourceGroup().name))]",
@@ -192,26 +156,6 @@
       "dependsOn": [
         "[resourceId('Microsoft.Network/publicIPAddresses', format('aciNatGw-ip-{0}', uniqueString(resourceGroup().name)))]"
       ]
-    },
-    {
-      "type": "Microsoft.Network/publicIPAddresses",
-      "apiVersion": "2023-11-01",
-      "name": "[format('serviceTaggedIp-{0}', parameters('clusterName'))]",
-      "location": "[parameters('region')]",
-      "sku": {
-        "name": "Standard",
-        "tier": "Regional"
-      },
-      "properties": {
-        "ipTags": [
-          {
-            "ipTagType": "FirstPartyUsage",
-            "tag": "/DelegatedNetworkControllerTest"
-          }
-        ],
-        "publicIPAddressVersion": "IPv4",
-        "publicIPAllocationMethod": "Static"
-      }
     },
     {
       "type": "Microsoft.Network/virtualNetworks",
@@ -261,31 +205,6 @@
       ]
     },
     {
-      "type": "Microsoft.Network/privateEndpoints",
-      "apiVersion": "2024-05-01",
-      "name": "[format('pe-subnetdelegator-{0}', uniqueString(parameters('subnetDelegatorName')))]",
-      "location": "[parameters('region')]",
-      "properties": {
-        "privateLinkServiceConnections": [
-          {
-            "name": "[format('pe-subnetdelegator-{0}-connection', uniqueString(parameters('subnetDelegatorName')))]",
-            "properties": {
-              "privateLinkServiceId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subnetDelegatorSubscriptionId'), parameters('subnetDelegatorRg')), 'Microsoft.App/managedEnvironments', parameters('subnetDelegatorEnvironment'))]",
-              "groupIds": [
-                "managedEnvironments"
-              ]
-            }
-          }
-        ],
-        "subnet": {
-          "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('infraVnetName')), '2024-05-01').subnets[1].id]"
-        }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Network/virtualNetworks', parameters('infraVnetName'))]"
-      ]
-    },
-    {
       "type": "Microsoft.Network/virtualNetworks",
       "apiVersion": "2021-08-01",
       "name": "customerVnet",
@@ -326,6 +245,198 @@
             }
           }
         ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2024-05-01",
+      "name": "[format('pe-subnetdelegator-{0}', uniqueString(parameters('subnetDelegatorName')))]",
+      "location": "[parameters('region')]",
+      "properties": {
+        "privateLinkServiceConnections": [
+          {
+            "name": "[format('pe-subnetdelegator-{0}-connection', uniqueString(parameters('subnetDelegatorName')))]",
+            "properties": {
+              "privateLinkServiceId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subnetDelegatorSubscriptionId'), parameters('subnetDelegatorRg')), 'Microsoft.App/managedEnvironments', parameters('subnetDelegatorEnvironment'))]",
+              "groupIds": [
+                "managedEnvironments"
+              ]
+            }
+          }
+        ],
+        "subnet": {
+          "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('infraVnetName')), '2024-05-01').subnets[1].id]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', parameters('infraVnetName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2022-09-01",
+      "name": "[format('dsstorage{0}', uniqueString(resourceGroup().name))]",
+      "location": "[parameters('region')]",
+      "kind": "StorageV2",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "properties": {
+        "allowBlobPublicAccess": false
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[format('Microsoft.Storage/storageAccounts/{0}', format('dsstorage{0}', uniqueString(resourceGroup().name)))]",
+      "name": "[guid(tenantResourceId('Microsoft.Authorization/roleDefinitions', '69566ab7-960f-475b-8e7c-b3118f30c6bd'), extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('msiRg')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'deploymentscript-msi'), resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name))))]",
+      "properties": {
+        "principalId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('msiRg')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'deploymentscript-msi'), '2023-07-31-preview').principalId]",
+        "roleDefinitionId": "[tenantResourceId('Microsoft.Authorization/roleDefinitions', '69566ab7-960f-475b-8e7c-b3118f30c6bd')]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[format('Microsoft.Storage/storageAccounts/{0}', format('dsstorage{0}', uniqueString(resourceGroup().name)))]",
+      "name": "[guid('17d1049b-9a84-46fb-8f53-869881c3d3ab', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('msiRg')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'deploymentscript-msi'), resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name))))]",
+      "properties": {
+        "principalId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('msiRg')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'deploymentscript-msi'), '2023-07-31-preview').principalId]",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '17d1049b-9a84-46fb-8f53-869881c3d3ab')]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2023-08-01",
+      "name": "[format('ds-subnetdelegator-{0}', uniqueString(resourceGroup().name))]",
+      "kind": "AzureCLI",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('msiRg')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'deploymentscript-msi'))]": {}
+        }
+      },
+      "location": "[parameters('region')]",
+      "properties": {
+        "storageAccountSettings": {
+          "storageAccountName": "[format('dsstorage{0}', uniqueString(resourceGroup().name))]"
+        },
+        "containerSettings": {
+          "subnetIds": [
+            {
+              "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('infraVnetName')), '2024-05-01').subnets[2].id]"
+            }
+          ]
+        },
+        "azCliVersion": "2.69.0",
+        "forceUpdateTag": "[parameters('randomGuid')]",
+        "retentionInterval": "PT2H",
+        "cleanupPreference": "OnExpiration",
+        "timeout": "PT20M",
+        "scriptContent": "[concat(format('curl -X PUT {0}:{1}/VirtualNetwork/%2Fsubscriptions%2F{2}%2FresourceGroups%2F{3}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F{4};', reference(resourceId('Microsoft.Network/privateEndpoints', format('pe-subnetdelegator-{0}', uniqueString(parameters('subnetDelegatorName')))), '2024-05-01').customDnsConfigs[0].ipAddresses[0], reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subnetDelegatorSubscriptionId'), parameters('subnetDelegatorRg')), 'Microsoft.App/containerApps', parameters('subnetDelegatorName')), '2024-10-02-preview').configuration.ingress.exposedPort, subscription().subscriptionId, resourceGroup().name, parameters('infraVnetName')), format('resp=$(curl -X PUT {0}:{1}/DelegatedSubnet/%2Fsubscriptions%2F{2}%2FresourceGroups%2F{3}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F{4}%2Fsubnets%2F{5});', reference(resourceId('Microsoft.Network/privateEndpoints', format('pe-subnetdelegator-{0}', uniqueString(parameters('subnetDelegatorName')))), '2024-05-01').customDnsConfigs[0].ipAddresses[0], reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subnetDelegatorSubscriptionId'), parameters('subnetDelegatorRg')), 'Microsoft.App/containerApps', parameters('subnetDelegatorName')), '2024-10-02-preview').configuration.ingress.exposedPort, subscription().subscriptionId, resourceGroup().name, parameters('customerVnetName'), parameters('delegatedSubnetName')), 'token=$(echo \"$resp\" | grep -oP ''(?<=\\{).*?(?=\\})'' | sed -n ''s/.*\"primaryToken\":\"\\([^\"]*\\)\".*/\\1/p'');', format('resp1=$(curl -X PUT {0}:{1}/DelegatedSubnet/%2Fsubscriptions%2F{2}%2FresourceGroups%2F{3}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F{4}%2Fsubnets%2F{5});', reference(resourceId('Microsoft.Network/privateEndpoints', format('pe-subnetdelegator-{0}', uniqueString(parameters('subnetDelegatorName')))), '2024-05-01').customDnsConfigs[0].ipAddresses[0], reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subnetDelegatorSubscriptionId'), parameters('subnetDelegatorRg')), 'Microsoft.App/containerApps', parameters('subnetDelegatorName')), '2024-10-02-preview').configuration.ingress.exposedPort, subscription().subscriptionId, resourceGroup().name, parameters('customerVnetName'), parameters('delegatedSubnet1Name')), 'token1=$(echo \"$resp1\" | grep -oP ''(?<=\\{).*?(?=\\})'' | sed -n ''s/.*\"primaryToken\":\"\\([^\"]*\\)\".*/\\1/p'');', 'echo \"{\\\"salToken\\\":\\\"$token\\\",\\\"salToken1\\\":\\\"$token1\\\"}\" > $AZ_SCRIPTS_OUTPUT_PATH;', 'cat $AZ_SCRIPTS_OUTPUT_PATH;')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', 'customerVnet')]",
+        "[resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', parameters('infraVnetName'))]",
+        "[resourceId('Microsoft.Network/privateEndpoints', format('pe-subnetdelegator-{0}', uniqueString(parameters('subnetDelegatorName'))))]",
+        "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name))), 'Microsoft.Authorization/roleAssignments', guid(tenantResourceId('Microsoft.Authorization/roleDefinitions', '69566ab7-960f-475b-8e7c-b3118f30c6bd'), extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('msiRg')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'deploymentscript-msi'), resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))))]",
+        "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name))), 'Microsoft.Authorization/roleAssignments', guid('17d1049b-9a84-46fb-8f53-869881c3d3ab', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('msiRg')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'deploymentscript-msi'), resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2023-08-01",
+      "name": "[format('ds-gc-{0}', uniqueString(resourceGroup().name))]",
+      "kind": "AzureCLI",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('msiRg')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'deploymentscript-msi'))]": {}
+        }
+      },
+      "location": "[parameters('region')]",
+      "properties": {
+        "azCliVersion": "2.69.0",
+        "forceUpdateTag": "[parameters('randomGuid')]",
+        "retentionInterval": "PT2H",
+        "cleanupPreference": "Always",
+        "timeout": "PT20M",
+        "scriptContent": "[concat(format('az account set -s {0};', subscription().subscriptionId), format('az storage account delete --name {0} -y;', format('dsstorage{0}', uniqueString(resourceGroup().name))))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deploymentScripts', format('ds-subnetdelegator-{0}', uniqueString(resourceGroup().name)))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))]",
+        "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name))), 'Microsoft.Authorization/roleAssignments', guid('17d1049b-9a84-46fb-8f53-869881c3d3ab', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('msiRg')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'deploymentscript-msi'), resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))))]"
+      ]
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions",
+      "apiVersion": "2024-12-01-preview",
+      "name": "[format('{0}/{1}', parameters('cosmosdbName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')), 'DncCosmosDbRbacRole'))]",
+      "properties": {
+        "roleName": "DncCosmosDbRbacRole",
+        "type": "CustomRole",
+        "permissions": [
+          {
+            "dataActions": "[variables('dataActions')]"
+          }
+        ],
+        "assignableScopes": [
+          "[format('{0}', resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')))]"
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-07-31-preview",
+      "name": "aksClusterKubeletIdentity",
+      "location": "[parameters('region')]"
+    },
+    {
+      "type": "Microsoft.DocumentDB/databaseAccounts/tableRoleAssignments",
+      "apiVersion": "2024-12-01-preview",
+      "name": "[format('{0}/{1}', parameters('cosmosdbName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')), resourceId('Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions', parameters('cosmosdbName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')), 'DncCosmosDbRbacRole')), 'aksClusterKubeletIdentity', 'roleAssignment'))]",
+      "properties": {
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'aksClusterKubeletIdentity'), '2023-07-31-preview').principalId]",
+        "roleDefinitionId": "[resourceId('Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions', parameters('cosmosdbName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')), 'DncCosmosDbRbacRole'))]",
+        "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName'))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'aksClusterKubeletIdentity')]",
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName'))]",
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions', parameters('cosmosdbName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosdbName')), 'DncCosmosDbRbacRole'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2023-11-01",
+      "name": "[format('serviceTaggedIp-{0}', parameters('clusterName'))]",
+      "location": "[parameters('region')]",
+      "sku": {
+        "name": "Standard",
+        "tier": "Regional"
+      },
+      "properties": {
+        "ipTags": [
+          {
+            "ipTagType": "FirstPartyUsage",
+            "tag": "/DelegatedNetworkControllerTest"
+          }
+        ],
+        "publicIPAddressVersion": "IPv4",
+        "publicIPAllocationMethod": "Static"
       }
     },
     {
@@ -433,95 +544,6 @@
       }
     },
     {
-      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
-      "apiVersion": "2023-07-31-preview",
-      "name": "helm-script-msi3",
-      "location": "[parameters('region')]"
-    },
-    {
-      "type": "Microsoft.Storage/storageAccounts",
-      "apiVersion": "2022-09-01",
-      "name": "[format('dsstorage{0}', uniqueString(resourceGroup().name))]",
-      "location": "[parameters('region')]",
-      "kind": "StorageV2",
-      "sku": {
-        "name": "Standard_LRS"
-      },
-      "properties": {
-        "allowBlobPublicAccess": false
-      }
-    },
-    {
-      "type": "Microsoft.Authorization/roleAssignments",
-      "apiVersion": "2022-04-01",
-      "scope": "[format('Microsoft.Storage/storageAccounts/{0}', format('dsstorage{0}', uniqueString(resourceGroup().name)))]",
-      "name": "[guid(tenantResourceId('Microsoft.Authorization/roleDefinitions', '69566ab7-960f-475b-8e7c-b3118f30c6bd'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'), resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name))))]",
-      "properties": {
-        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'), '2023-07-31-preview').principalId]",
-        "roleDefinitionId": "[tenantResourceId('Microsoft.Authorization/roleDefinitions', '69566ab7-960f-475b-8e7c-b3118f30c6bd')]",
-        "principalType": "ServicePrincipal"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3')]"
-      ]
-    },
-    {
-      "type": "Microsoft.Authorization/roleAssignments",
-      "apiVersion": "2022-04-01",
-      "scope": "[format('Microsoft.Storage/storageAccounts/{0}', format('dsstorage{0}', uniqueString(resourceGroup().name)))]",
-      "name": "[guid('17d1049b-9a84-46fb-8f53-869881c3d3ab', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'), resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name))))]",
-      "properties": {
-        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'), '2023-07-31-preview').principalId]",
-        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '17d1049b-9a84-46fb-8f53-869881c3d3ab')]",
-        "principalType": "ServicePrincipal"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3')]"
-      ]
-    },
-    {
-      "type": "Microsoft.Resources/deploymentScripts",
-      "apiVersion": "2023-08-01",
-      "name": "[format('ds-subnetdelegator-{0}', uniqueString(resourceGroup().name))]",
-      "kind": "AzureCLI",
-      "identity": {
-        "type": "UserAssigned",
-        "userAssignedIdentities": {
-          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'))]": {}
-        }
-      },
-      "location": "[parameters('region')]",
-      "properties": {
-        "storageAccountSettings": {
-          "storageAccountName": "[format('dsstorage{0}', uniqueString(resourceGroup().name))]"
-        },
-        "containerSettings": {
-          "subnetIds": [
-            {
-              "id": "[reference(resourceId('Microsoft.Network/virtualNetworks', parameters('infraVnetName')), '2024-05-01').subnets[2].id]"
-            }
-          ]
-        },
-        "azCliVersion": "2.69.0",
-        "forceUpdateTag": "[parameters('randomGuid')]",
-        "retentionInterval": "PT2H",
-        "cleanupPreference": "OnExpiration",
-        "timeout": "PT20M",
-        "scriptContent": "[concat(format('curl -X PUT {0}:{1}/VirtualNetwork/%2Fsubscriptions%2F{2}%2FresourceGroups%2F{3}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F{4};', reference(resourceId('Microsoft.Network/privateEndpoints', format('pe-subnetdelegator-{0}', uniqueString(parameters('subnetDelegatorName')))), '2024-05-01').customDnsConfigs[0].ipAddresses[0], reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subnetDelegatorSubscriptionId'), parameters('subnetDelegatorRg')), 'Microsoft.App/containerApps', parameters('subnetDelegatorName')), '2024-10-02-preview').configuration.ingress.exposedPort, subscription().subscriptionId, resourceGroup().name, parameters('infraVnetName')), format('resp=$(curl -X PUT {0}:{1}/DelegatedSubnet/%2Fsubscriptions%2F{2}%2FresourceGroups%2F{3}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F{4}%2Fsubnets%2F{5});', reference(resourceId('Microsoft.Network/privateEndpoints', format('pe-subnetdelegator-{0}', uniqueString(parameters('subnetDelegatorName')))), '2024-05-01').customDnsConfigs[0].ipAddresses[0], reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subnetDelegatorSubscriptionId'), parameters('subnetDelegatorRg')), 'Microsoft.App/containerApps', parameters('subnetDelegatorName')), '2024-10-02-preview').configuration.ingress.exposedPort, subscription().subscriptionId, resourceGroup().name, parameters('customerVnetName'), parameters('delegatedSubnetName')), 'token=$(echo \"$resp\" | grep -oP ''(?<=\\{).*?(?=\\})'' | sed -n ''s/.*\"primaryToken\":\"\\([^\"]*\\)\".*/\\1/p'');', format('resp1=$(curl -X PUT {0}:{1}/DelegatedSubnet/%2Fsubscriptions%2F{2}%2FresourceGroups%2F{3}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F{4}%2Fsubnets%2F{5});', reference(resourceId('Microsoft.Network/privateEndpoints', format('pe-subnetdelegator-{0}', uniqueString(parameters('subnetDelegatorName')))), '2024-05-01').customDnsConfigs[0].ipAddresses[0], reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subnetDelegatorSubscriptionId'), parameters('subnetDelegatorRg')), 'Microsoft.App/containerApps', parameters('subnetDelegatorName')), '2024-10-02-preview').configuration.ingress.exposedPort, subscription().subscriptionId, resourceGroup().name, parameters('customerVnetName'), parameters('delegatedSubnet1Name')), 'token1=$(echo \"$resp1\" | grep -oP ''(?<=\\{).*?(?=\\})'' | sed -n ''s/.*\"primaryToken\":\"\\([^\"]*\\)\".*/\\1/p'');', 'echo \"{\\\"salToken\\\":\\\"$token\\\",\\\"salToken1\\\":\\\"$token1\\\"}\" > $AZ_SCRIPTS_OUTPUT_PATH;', 'cat $AZ_SCRIPTS_OUTPUT_PATH;')]"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Network/virtualNetworks', 'customerVnet')]",
-        "[resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))]",
-        "[resourceId('Microsoft.Network/virtualNetworks', parameters('infraVnetName'))]",
-        "[resourceId('Microsoft.Network/privateEndpoints', format('pe-subnetdelegator-{0}', uniqueString(parameters('subnetDelegatorName'))))]",
-        "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name))), 'Microsoft.Authorization/roleAssignments', guid(tenantResourceId('Microsoft.Authorization/roleDefinitions', '69566ab7-960f-475b-8e7c-b3118f30c6bd'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'), resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))))]",
-        "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name))), 'Microsoft.Authorization/roleAssignments', guid('17d1049b-9a84-46fb-8f53-869881c3d3ab', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'), resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3')]"
-      ]
-    },
-    {
       "type": "Microsoft.Resources/deploymentScripts",
       "apiVersion": "2020-10-01",
       "name": "aksBYONScript",
@@ -529,7 +551,7 @@
       "identity": {
         "type": "UserAssigned",
         "userAssignedIdentities": {
-          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'))]": {}
+          "[format('{0}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('msiRg')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'deploymentscript-msi'))]": {}
         }
       },
       "location": "[parameters('region')]",
@@ -540,7 +562,7 @@
         "cleanupPreference": "OnExpiration",
         "timeout": "PT20M",
         "primaryScriptUri": "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/aksBYON.sh",
-        "arguments": "[format('-g {0} -c {1} -u {2}', parameters('rg'), parameters('clusterName'), parameters('subscriptionId'))]",
+        "arguments": "[format('-g {0} -c {1} -u {2}', resourceGroup().name, parameters('clusterName'), subscription().subscriptionId)]",
         "supportingScriptUris": [
           "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/Chart.yaml",
           "https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/values.yaml",
@@ -556,8 +578,7 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.ContainerService/managedClusters', parameters('clusterName'))]",
-        "[resourceId('Microsoft.Resources/deployments', 'testResourcesDeployment')]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3')]"
+        "[resourceId('Microsoft.Resources/deployments', 'testResourcesDeployment')]"
       ]
     },
     {
@@ -568,7 +589,7 @@
       "identity": {
         "type": "UserAssigned",
         "userAssignedIdentities": {
-          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'))]": {}
+          "[format('{0}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('msiRg')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'deploymentscript-msi'))]": {}
         }
       },
       "location": "[parameters('region')]",
@@ -604,36 +625,246 @@
         "[resourceId('Microsoft.Resources/deployments', 'vmssCreationModule')]",
         "[resourceId('Microsoft.Resources/deploymentScripts', format('ds-subnetdelegator-{0}', uniqueString(resourceGroup().name)))]",
         "[resourceId('Microsoft.Resources/deployments', 'testResourcesDeployment')]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3')]",
         "[resourceId('Microsoft.Resources/deployments', 'workerVmssCreationModule')]"
       ]
     },
     {
-      "type": "Microsoft.Resources/deploymentScripts",
-      "apiVersion": "2023-08-01",
-      "name": "[format('ds-gc-{0}', uniqueString(resourceGroup().name))]",
-      "kind": "AzureCLI",
-      "identity": {
-        "type": "UserAssigned",
-        "userAssignedIdentities": {
-          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'))]": {}
-        }
-      },
-      "location": "[parameters('region')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "roleAssignmentsDeployment1",
+      "subscriptionId": "[subscription().subscriptionId]",
+      "location": "[resourceGroup().location]",
       "properties": {
-        "azCliVersion": "2.69.0",
-        "forceUpdateTag": "[parameters('randomGuid')]",
-        "retentionInterval": "PT2H",
-        "cleanupPreference": "Always",
-        "timeout": "PT20M",
-        "scriptContent": "[concat(format('az account set -s {0};', subscription().subscriptionId), format('az storage account delete --name {0} -y;', format('dsstorage{0}', uniqueString(resourceGroup().name))))]"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Resources/deploymentScripts', format('ds-subnetdelegator-{0}', uniqueString(resourceGroup().name)))]",
-        "[resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))]",
-        "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name))), 'Microsoft.Authorization/roleAssignments', guid('17d1049b-9a84-46fb-8f53-869881c3d3ab', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'), resourceId('Microsoft.Storage/storageAccounts', format('dsstorage{0}', uniqueString(resourceGroup().name)))))]",
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3')]"
-      ]
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "principalId": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('msiRg')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'deploymentscript-msi'), '2023-07-31-preview').principalId]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.34.44.8038",
+              "templateHash": "9610791426578076249"
+            }
+          },
+          "parameters": {
+            "principalId": {
+              "type": "string",
+              "metadata": {
+                "description": "The principal ID of the identity to assign roles to"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'Contributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'KeyVaultAdmin')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '00482a5a-887f-4fb3-b363-3b7fe8e74483')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'KeyVaultCertUser')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'NetworkContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4d97b98b-1d4f-4787-a291-c67834d212e7')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'StorageFileDataPrivilegedContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '69566ab7-960f-475b-8e7c-b3118f30c6bd')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'StorageAccountContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '17d1049b-9a84-46fb-8f53-869881c3d3ab')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'AksRbacAdmin')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3498e952-d568-435e-9b2c-8d77e338d7f7')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'AksClusterAdmin')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0ab0b1a8-8aac-4efd-b8c2-3ee1fb270be8')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'ManagedIdentityOperator')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f1a07417-d97a-45cb-824c-7a7467783830')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'VmContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '9980e02c-c2be-4d73-94e8-173b1dc7cf3c')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'ManagedIdentityContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'e40ec5ca-96e0-45a2-b4ff-59039f2c2b59')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'AksRbacReader')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f6c6a51-bcf8-42ba-9220-52d62157d7db')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'AksContributor')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ed7f3fbd-7b88-4dd4-9017-9adb7ce333f8')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'Reader')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "name": "[guid(subscription().id, parameters('principalId'), 'Owner')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8e3af657-a8ff-443c-a75c-2fe8c4bcb635')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2022-09-01",
+              "name": "[guid('0895de50-30a3-4b75-aada-5b23ebd4e8bc', parameters('principalId'), 'AcrPull')]",
+              "subscriptionId": "0895de50-30a3-4b75-aada-5b23ebd4e8bc",
+              "location": "[deployment().location]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "principalId": {
+                    "value": "[parameters('principalId')]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.34.44.8038",
+                      "templateHash": "1725292212116541834"
+                    }
+                  },
+                  "parameters": {
+                    "principalId": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The principal ID of the identity to assign roles to"
+                      }
+                    }
+                  },
+                  "resources": [
+                    {
+                      "type": "Microsoft.Authorization/roleAssignments",
+                      "apiVersion": "2022-04-01",
+                      "name": "[guid(subscription().id, parameters('principalId'), 'AcrPull')]",
+                      "properties": {
+                        "principalId": "[parameters('principalId')]",
+                        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+                        "principalType": "ServicePrincipal"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
     },
     {
       "type": "Microsoft.Resources/deployments",
@@ -879,247 +1110,6 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2022-09-01",
-      "name": "roleAssignmentsDeployment1",
-      "subscriptionId": "[subscription().subscriptionId]",
-      "location": "[resourceGroup().location]",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "principalId": {
-            "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'), '2023-07-31-preview').principalId]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.34.44.8038",
-              "templateHash": "9610791426578076249"
-            }
-          },
-          "parameters": {
-            "principalId": {
-              "type": "string",
-              "metadata": {
-                "description": "The principal ID of the identity to assign roles to"
-              }
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), 'Contributor')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
-                "principalType": "ServicePrincipal"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), 'KeyVaultAdmin')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '00482a5a-887f-4fb3-b363-3b7fe8e74483')]",
-                "principalType": "ServicePrincipal"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), 'KeyVaultCertUser')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a4417e6f-fecd-4de8-b567-7b0420556985')]",
-                "principalType": "ServicePrincipal"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), 'NetworkContributor')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4d97b98b-1d4f-4787-a291-c67834d212e7')]",
-                "principalType": "ServicePrincipal"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), 'StorageFileDataPrivilegedContributor')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '69566ab7-960f-475b-8e7c-b3118f30c6bd')]",
-                "principalType": "ServicePrincipal"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), 'StorageAccountContributor')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '17d1049b-9a84-46fb-8f53-869881c3d3ab')]",
-                "principalType": "ServicePrincipal"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), 'AksRbacAdmin')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3498e952-d568-435e-9b2c-8d77e338d7f7')]",
-                "principalType": "ServicePrincipal"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), 'AksClusterAdmin')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0ab0b1a8-8aac-4efd-b8c2-3ee1fb270be8')]",
-                "principalType": "ServicePrincipal"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), 'ManagedIdentityOperator')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f1a07417-d97a-45cb-824c-7a7467783830')]",
-                "principalType": "ServicePrincipal"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), 'VmContributor')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '9980e02c-c2be-4d73-94e8-173b1dc7cf3c')]",
-                "principalType": "ServicePrincipal"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), 'ManagedIdentityContributor')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'e40ec5ca-96e0-45a2-b4ff-59039f2c2b59')]",
-                "principalType": "ServicePrincipal"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), 'AksRbacReader')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f6c6a51-bcf8-42ba-9220-52d62157d7db')]",
-                "principalType": "ServicePrincipal"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), 'AksContributor')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ed7f3fbd-7b88-4dd4-9017-9adb7ce333f8')]",
-                "principalType": "ServicePrincipal"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), 'Reader')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]",
-                "principalType": "ServicePrincipal"
-              }
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "name": "[guid(subscription().id, parameters('principalId'), 'Owner')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8e3af657-a8ff-443c-a75c-2fe8c4bcb635')]",
-                "principalType": "ServicePrincipal"
-              }
-            },
-            {
-              "type": "Microsoft.Resources/deployments",
-              "apiVersion": "2022-09-01",
-              "name": "[guid('0895de50-30a3-4b75-aada-5b23ebd4e8bc', parameters('principalId'), 'AcrPull')]",
-              "subscriptionId": "0895de50-30a3-4b75-aada-5b23ebd4e8bc",
-              "location": "[deployment().location]",
-              "properties": {
-                "expressionEvaluationOptions": {
-                  "scope": "inner"
-                },
-                "mode": "Incremental",
-                "parameters": {
-                  "principalId": {
-                    "value": "[parameters('principalId')]"
-                  }
-                },
-                "template": {
-                  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
-                  "contentVersion": "1.0.0.0",
-                  "metadata": {
-                    "_generator": {
-                      "name": "bicep",
-                      "version": "0.34.44.8038",
-                      "templateHash": "1725292212116541834"
-                    }
-                  },
-                  "parameters": {
-                    "principalId": {
-                      "type": "string",
-                      "metadata": {
-                        "description": "The principal ID of the identity to assign roles to"
-                      }
-                    }
-                  },
-                  "resources": [
-                    {
-                      "type": "Microsoft.Authorization/roleAssignments",
-                      "apiVersion": "2022-04-01",
-                      "name": "[guid(subscription().id, parameters('principalId'), 'AcrPull')]",
-                      "properties": {
-                        "principalId": "[parameters('principalId')]",
-                        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
-                        "principalType": "ServicePrincipal"
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          ]
-        }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3')]"
-      ]
-    },
-    {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2022-09-01",
       "name": "testResourcesDeployment",
       "properties": {
         "expressionEvaluationOptions": {
@@ -1263,7 +1253,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.34.44.8038",
-              "templateHash": "16575600268455262878"
+              "templateHash": "16066444327396416468"
             }
           },
           "parameters": {
@@ -1401,7 +1391,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.34.44.8038",
-                      "templateHash": "17941968303289412103"
+                      "templateHash": "12723844360292738582"
                     }
                   },
                   "parameters": {
@@ -1450,6 +1440,10 @@
                     },
                     "aksClusterKubeletIdentityId": {
                       "type": "string"
+                    },
+                    "msiRg": {
+                      "type": "string",
+                      "defaultValue": "RunnersIdentities"
                     },
                     "securityType": {
                       "type": "string",
@@ -1511,7 +1505,7 @@
                       "identity": {
                         "type": "UserAssigned",
                         "userAssignedIdentities": {
-                          "[format('{0}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subscriptionId'), parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'))]": {},
+                          "[format('{0}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subscriptionId'), parameters('msiRg')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'deploymentscript-msi'))]": {},
                           "[format('{0}', parameters('aksClusterKubeletIdentityId'))]": {}
                         }
                       },
@@ -1586,7 +1580,7 @@
                           },
                           "securityProfile": "[if(equals(parameters('securityType'), 'TrustedLaunch'), variables('securityProfileJson'), null())]",
                           "networkProfile": {
-                            "networkInterfaceConfigurations": "[concat(createArray(createObject('name', 'primary-nic', 'properties', createObject('primary', true(), 'enableAcceleratedNetworking', true(), 'ipConfigurations', createArray(createObject('name', 'primary-ip', 'properties', createObject('subnet', createObject('id', format('{0}/subnets/{1}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subscriptionId'), parameters('vnetrgname')), 'Microsoft.Network/virtualNetworks', parameters('vnetname')), parameters('subnetname'))), 'primary', true(), 'publicIPAddressConfiguration', createObject('name', 'pub', 'sku', createObject('name', 'Standard')))))))), variables('delegatenics'))]"
+                            "networkInterfaceConfigurations": "[concat(createArray(createObject('name', 'primary-nic', 'properties', createObject('primary', true(), 'enableAcceleratedNetworking', true(), 'ipConfigurations', createArray(createObject('name', 'primary-ip', 'properties', createObject('subnet', createObject('id', format('{0}/subnets/{1}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subscriptionId'), parameters('vnetrgname')), 'Microsoft.Network/virtualNetworks', parameters('vnetname')), parameters('subnetname'))), 'primary', true())))))), variables('delegatenics'))]"
                           }
                         }
                       },
@@ -1622,7 +1616,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.34.44.8038",
-                              "templateHash": "5482259691798818046"
+                              "templateHash": "5896388300810607418"
                             }
                           },
                           "functions": [
@@ -1814,6 +1808,10 @@
                             "extversion": {
                               "type": "string",
                               "defaultValue": ""
+                            },
+                            "msiRg": {
+                              "type": "string",
+                              "defaultValue": "RunnersIdentities"
                             }
                           },
                           "variables": {
@@ -1847,8 +1845,8 @@
                               "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
                               "apiVersion": "2023-01-31",
                               "subscriptionId": "[parameters('hubsub')]",
-                              "resourceGroup": "[parameters('hubgroup')]",
-                              "name": "helm-script-msi3"
+                              "resourceGroup": "[parameters('msiRg')]",
+                              "name": "deploymentscript-msi"
                             }
                           },
                           "outputs": {
@@ -1917,7 +1915,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.34.44.8038",
-              "templateHash": "16575600268455262878"
+              "templateHash": "16066444327396416468"
             }
           },
           "parameters": {
@@ -2055,7 +2053,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.34.44.8038",
-                      "templateHash": "17941968303289412103"
+                      "templateHash": "12723844360292738582"
                     }
                   },
                   "parameters": {
@@ -2104,6 +2102,10 @@
                     },
                     "aksClusterKubeletIdentityId": {
                       "type": "string"
+                    },
+                    "msiRg": {
+                      "type": "string",
+                      "defaultValue": "RunnersIdentities"
                     },
                     "securityType": {
                       "type": "string",
@@ -2165,7 +2167,7 @@
                       "identity": {
                         "type": "UserAssigned",
                         "userAssignedIdentities": {
-                          "[format('{0}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subscriptionId'), parameters('resourceGroupName')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'helm-script-msi3'))]": {},
+                          "[format('{0}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subscriptionId'), parameters('msiRg')), 'Microsoft.ManagedIdentity/userAssignedIdentities', 'deploymentscript-msi'))]": {},
                           "[format('{0}', parameters('aksClusterKubeletIdentityId'))]": {}
                         }
                       },
@@ -2240,7 +2242,7 @@
                           },
                           "securityProfile": "[if(equals(parameters('securityType'), 'TrustedLaunch'), variables('securityProfileJson'), null())]",
                           "networkProfile": {
-                            "networkInterfaceConfigurations": "[concat(createArray(createObject('name', 'primary-nic', 'properties', createObject('primary', true(), 'enableAcceleratedNetworking', true(), 'ipConfigurations', createArray(createObject('name', 'primary-ip', 'properties', createObject('subnet', createObject('id', format('{0}/subnets/{1}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subscriptionId'), parameters('vnetrgname')), 'Microsoft.Network/virtualNetworks', parameters('vnetname')), parameters('subnetname'))), 'primary', true(), 'publicIPAddressConfiguration', createObject('name', 'pub', 'sku', createObject('name', 'Standard')))))))), variables('delegatenics'))]"
+                            "networkInterfaceConfigurations": "[concat(createArray(createObject('name', 'primary-nic', 'properties', createObject('primary', true(), 'enableAcceleratedNetworking', true(), 'ipConfigurations', createArray(createObject('name', 'primary-ip', 'properties', createObject('subnet', createObject('id', format('{0}/subnets/{1}', extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('subscriptionId'), parameters('vnetrgname')), 'Microsoft.Network/virtualNetworks', parameters('vnetname')), parameters('subnetname'))), 'primary', true())))))), variables('delegatenics'))]"
                           }
                         }
                       },
@@ -2276,7 +2278,7 @@
                             "_generator": {
                               "name": "bicep",
                               "version": "0.34.44.8038",
-                              "templateHash": "5482259691798818046"
+                              "templateHash": "5896388300810607418"
                             }
                           },
                           "functions": [
@@ -2468,6 +2470,10 @@
                             "extversion": {
                               "type": "string",
                               "defaultValue": ""
+                            },
+                            "msiRg": {
+                              "type": "string",
+                              "defaultValue": "RunnersIdentities"
                             }
                           },
                           "variables": {
@@ -2501,8 +2507,8 @@
                               "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
                               "apiVersion": "2023-01-31",
                               "subscriptionId": "[parameters('hubsub')]",
-                              "resourceGroup": "[parameters('hubgroup')]",
-                              "name": "helm-script-msi3"
+                              "resourceGroup": "[parameters('msiRg')]",
+                              "name": "deploymentscript-msi"
                             }
                           },
                           "outputs": {
@@ -2540,14 +2546,6 @@
     }
   ],
   "outputs": {
-    "fqdn1": {
-      "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'testResourcesDeployment'), '2022-09-01').outputs.fqdn1.value]"
-    },
-    "fqdn2": {
-      "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'testResourcesDeployment'), '2022-09-01').outputs.fqdn2.value]"
-    },
     "salToken": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.Resources/deploymentScripts', format('ds-subnetdelegator-{0}', uniqueString(resourceGroup().name))), '2023-08-01').outputs.salToken]"
@@ -2555,6 +2553,14 @@
     "salToken1": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.Resources/deploymentScripts', format('ds-subnetdelegator-{0}', uniqueString(resourceGroup().name))), '2023-08-01').outputs.salToken1]"
+    },
+    "fqdn1": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'testResourcesDeployment'), '2022-09-01').outputs.fqdn1.value]"
+    },
+    "fqdn2": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'testResourcesDeployment'), '2022-09-01').outputs.fqdn2.value]"
     },
     "dncVMSSLogs": {
       "type": "array",
