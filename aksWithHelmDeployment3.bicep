@@ -1,14 +1,14 @@
 @description('Name of the cluster')
-param clusterName string
+param clusterName string = 'aks'
 @description('Region')
-param region string
+param region string = 'eastus2euap'
 @description('Resource Group')
-param rg string
+param rg string = resourceGroup().name
 @description('Name of the cosmosdb')
-param cosmosdbName string
+param cosmosdbName string = 'daladb'
 
 @description('Subscription ID')
-param subscriptionId string
+param subscriptionId string = subscription().subscriptionId
 param infraVnetName string = 'infraVnet'
 param infraSubnetName string = 'infraSubnet'
 param aciSubnetName string = 'aci-subnet'
@@ -26,57 +26,6 @@ param subnetDelegatorRg string = 'subnetdelegator-eastus2euap'
 param subnetDelegatorSubscriptionId string = '0895de50-30a3-4b75-aada-5b23ebd4e8bc'
 ////////////////
 param msiRg string = 'RunnersIdentities'
-
-var dataActions = [
-  'Microsoft.DocumentDB/databaseAccounts/readMetadata'
-  'Microsoft.DocumentDB/databaseAccounts/throughputSettings/*'
-  'Microsoft.DocumentDB/databaseAccounts/tables/write'
-  'Microsoft.DocumentDB/databaseAccounts/tables/containers/write'
-  'Microsoft.DocumentDB/databaseAccounts/tables/containers/executeQuery'
-  'Microsoft.DocumentDB/databaseAccounts/tables/containers/executeStoredProcedure'
-  'Microsoft.DocumentDB/databaseAccounts/tables/containers/entities/*'
-] 
-
-
-resource customRole 'Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions@2024-12-01-preview' = {
-  name: guid(cosmosdb.id, 'DncCosmosDbRbacRole')
-  parent: cosmosdb
-  properties: {
-    roleName: 'DncCosmosDbRbacRole'
-    type: 'CustomRole'
-    permissions: [
-      {
-        dataActions: dataActions
-      }
-    ]
-    assignableScopes: [
-      '${cosmosdb.id}'
-    ]
-  }
-}
-
-resource aksClusterKubeletIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
-  name: 'aksClusterKubeletIdentity'
-  location: region
-}
-
-resource cosmosdbRoleAssignmentForDNC 'Microsoft.DocumentDB/databaseAccounts/tableRoleAssignments@2024-12-01-preview' = {
-  name: guid(cosmosdb.id, customRole.id, 'aksClusterKubeletIdentity', 'roleAssignment')
-  parent: cosmosdb
-  properties: {
-    principalId: aksClusterKubeletIdentity.properties.principalId
-    roleDefinitionId: customRole.id
-    scope: cosmosdb.id
-  }
-}
-
-module roleAssignments './roleAssignmentsInSub.bicep' = {
-  name: 'roleAssignmentsDeployment'
-  scope: subscription() // Explicitly set the module scope to subscription
-  params: {
-    principalId: aksClusterKubeletIdentity.properties.principalId
-  }
-}
 
 resource subnetDelegator 'Microsoft.App/containerApps@2024-10-02-preview' existing = {
   name: subnetDelegatorName
@@ -117,25 +66,6 @@ resource aciNatGw 'Microsoft.Network/natGateways@2024-05-01' = {
     publicIpAddresses:[ {
       id: ip.id
     }]
-  }
-}
-
-resource outboundIp 'Microsoft.Network/publicIPAddresses@2023-11-01' = {
-  name: 'serviceTaggedIp-${clusterName}'
-  location: region
-  sku: {
-    name: 'Standard'
-    tier: 'Regional'
-  }
-  properties: {
-    ipTags: [
-      {
-        ipTagType: 'FirstPartyUsage'
-        tag: '/DelegatedNetworkControllerTest'
-      }
-    ]
-    publicIPAddressVersion: 'IPv4'
-    publicIPAllocationMethod: 'Static'
   }
 }
 
@@ -182,27 +112,6 @@ resource infraVnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   }
 }
 
-resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' ={
-  name: 'pe-subnetdelegator-${uniqueString(subnetDelegatorName)}'
-  location: region
-  properties: {
-    privateLinkServiceConnections: [
-      {
-        name: 'pe-subnetdelegator-${uniqueString(subnetDelegatorName)}-connection'
-        properties: {
-          privateLinkServiceId: subnetDelegatorAcaEnv.id
-          groupIds: [
-            'managedEnvironments'
-          ]
-        }
-      }
-    ]
-    subnet: {
-      id: infraVnet.properties.subnets[1].id
-    }
-  }
-}
-
 resource customerVnet 'Microsoft.Network/virtualNetworks@2021-08-01' = {
   name: 'customerVnet'
   location: region
@@ -242,6 +151,228 @@ resource customerVnet 'Microsoft.Network/virtualNetworks@2021-08-01' = {
         }
       }
     ]
+  }
+}
+resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' ={
+  name: 'pe-subnetdelegator-${uniqueString(subnetDelegatorName)}'
+  location: region
+  properties: {
+    privateLinkServiceConnections: [
+      {
+        name: 'pe-subnetdelegator-${uniqueString(subnetDelegatorName)}-connection'
+        properties: {
+          privateLinkServiceId: subnetDelegatorAcaEnv.id
+          groupIds: [
+            'managedEnvironments'
+          ]
+        }
+      }
+    ]
+    subnet: {
+      id: infraVnet.properties.subnets[1].id
+    }
+  }
+}
+
+resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' existing = {
+  // name: 'helm-script-msi3'
+  // region: region
+  name: 'deploymentscript-msi'
+  scope: resourceGroup(msiRg)
+}
+
+module roleAssignments1 './roleAssignmentsInSub.bicep' = {
+  name: 'roleAssignmentsDeployment1'
+  scope: subscription() // Explicitly set the module scope to subscription
+  params: {
+    principalId: userAssignedIdentity.properties.principalId
+  }
+}
+
+resource storageFileDataPrivilegedContributor 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
+  name: '69566ab7-960f-475b-8e7c-b3118f30c6bd' // Storage File Data Privileged Contributor
+  scope: tenant()
+}
+
+resource dsStorage 'Microsoft.Storage/storageAccounts@2022-09-01' = {
+  name: 'dsstorage${uniqueString(resourceGroup().name)}'
+  location: region
+  kind: 'StorageV2'
+  sku: {
+    name: 'Standard_LRS'
+  }
+  properties: {
+    allowBlobPublicAccess: false
+  }
+}
+
+resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: dsStorage
+
+  name: guid(storageFileDataPrivilegedContributor.id, userAssignedIdentity.id, dsStorage.id)
+  properties: {
+    principalId: userAssignedIdentity.properties.principalId
+    roleDefinitionId: storageFileDataPrivilegedContributor.id
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource storageContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: dsStorage
+  name: guid('17d1049b-9a84-46fb-8f53-869881c3d3ab', userAssignedIdentity.id, dsStorage.id)
+  properties: {
+    principalId: userAssignedIdentity.properties.principalId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '17d1049b-9a84-46fb-8f53-869881c3d3ab') // Storage Account Contributor
+    principalType: 'ServicePrincipal'
+  }
+}
+
+param randomGuid string = newGuid()
+
+// Subnet delegation script
+resource ds 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
+  #disable-next-line use-stable-resource-identifiers
+  name: 'ds-subnetdelegator-${uniqueString(resourceGroup().name)}' 
+  kind: 'AzureCLI'
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${userAssignedIdentity.id}': {}
+    }
+  }
+  dependsOn: [
+    customerVnet
+    roleAssignment
+    storageContributor
+  ]
+  location: region
+  properties: {
+    storageAccountSettings: {storageAccountName: dsStorage.name}
+    containerSettings: {
+      subnetIds: [
+        {
+          id: infraVnet.properties.subnets[2].id
+        }
+      ]
+    }
+    azCliVersion: '2.69.0'
+    forceUpdateTag: randomGuid
+    retentionInterval: 'PT2H'
+    cleanupPreference: 'OnExpiration'
+    timeout: 'PT20M'
+    scriptContent: concat(
+      'curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/VirtualNetwork/%2Fsubscriptions%2F${subscription().subscriptionId}%2FresourceGroups%2F${resourceGroup().name}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${infraVnetName};',
+      'resp=$(curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/DelegatedSubnet/%2Fsubscriptions%2F${subscription().subscriptionId}%2FresourceGroups%2F${resourceGroup().name}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${customerVnetName}%2Fsubnets%2F${delegatedSubnetName});',
+      'token=$(echo "$resp" | grep -oP \'(?<=\\{).*?(?=\\})\' | sed -n \'s/.*"primaryToken":"\\([^"]*\\)".*/\\1/p\');',
+      'resp1=$(curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/DelegatedSubnet/%2Fsubscriptions%2F${subscription().subscriptionId}%2FresourceGroups%2F${resourceGroup().name}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${customerVnetName}%2Fsubnets%2F${delegatedSubnet1Name});',
+      'token1=$(echo "$resp1" | grep -oP \'(?<=\\{).*?(?=\\})\' | sed -n \'s/.*"primaryToken":"\\([^"]*\\)".*/\\1/p\');',
+      'echo "{\\"salToken\\":\\"$token\\",\\"salToken1\\":\\"$token1\\"}" > $AZ_SCRIPTS_OUTPUT_PATH;',
+      'cat $AZ_SCRIPTS_OUTPUT_PATH;'
+    )
+  }
+}
+
+
+// Outputs
+output salToken string = ds.properties.outputs.salToken
+output salToken1 string = ds.properties.outputs.salToken1
+
+// Cleanup script
+resource dsGc 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
+  #disable-next-line use-stable-resource-identifiers
+  name: 'ds-gc-${uniqueString(resourceGroup().name)}' 
+  kind: 'AzureCLI'
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${userAssignedIdentity.id}': {}
+    }
+  }
+  dependsOn: [
+    ds
+    storageContributor
+  ]
+  location: region
+  properties: {
+    azCliVersion: '2.69.0'
+    forceUpdateTag: randomGuid
+    retentionInterval: 'PT2H'
+    cleanupPreference: 'Always'
+    timeout: 'PT20M'
+    scriptContent: concat(
+      'az account set -s ${subscription().subscriptionId};',
+      'az storage account delete --name ${dsStorage.name} -y;'
+    )
+  }
+}
+
+var dataActions = [
+  'Microsoft.DocumentDB/databaseAccounts/readMetadata'
+  'Microsoft.DocumentDB/databaseAccounts/throughputSettings/*'
+  'Microsoft.DocumentDB/databaseAccounts/tables/write'
+  'Microsoft.DocumentDB/databaseAccounts/tables/containers/write'
+  'Microsoft.DocumentDB/databaseAccounts/tables/containers/executeQuery'
+  'Microsoft.DocumentDB/databaseAccounts/tables/containers/executeStoredProcedure'
+  'Microsoft.DocumentDB/databaseAccounts/tables/containers/entities/*'
+] 
+
+resource customRole 'Microsoft.DocumentDB/databaseAccounts/tableRoleDefinitions@2024-12-01-preview' = {
+  name: guid(cosmosdb.id, 'DncCosmosDbRbacRole')
+  parent: cosmosdb
+  properties: {
+    roleName: 'DncCosmosDbRbacRole'
+    type: 'CustomRole'
+    permissions: [
+      {
+        dataActions: dataActions
+      }
+    ]
+    assignableScopes: [
+      '${cosmosdb.id}'
+    ]
+  }
+}
+
+resource aksClusterKubeletIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
+  name: 'aksClusterKubeletIdentity'
+  location: region
+}
+
+resource cosmosdbRoleAssignmentForDNC 'Microsoft.DocumentDB/databaseAccounts/tableRoleAssignments@2024-12-01-preview' = {
+  name: guid(cosmosdb.id, customRole.id, 'aksClusterKubeletIdentity', 'roleAssignment')
+  parent: cosmosdb
+  properties: {
+    principalId: aksClusterKubeletIdentity.properties.principalId
+    roleDefinitionId: customRole.id
+    scope: cosmosdb.id
+  }
+}
+
+module roleAssignments './roleAssignmentsInSub.bicep' = {
+  name: 'roleAssignmentsDeployment'
+  scope: subscription() // Explicitly set the module scope to subscription
+  params: {
+    principalId: aksClusterKubeletIdentity.properties.principalId
+  }
+}
+
+
+resource outboundIp 'Microsoft.Network/publicIPAddresses@2023-11-01' = {
+  name: 'serviceTaggedIp-${clusterName}'
+  location: region
+  sku: {
+    name: 'Standard'
+    tier: 'Regional'
+  }
+  properties: {
+    ipTags: [
+      {
+        ipTagType: 'FirstPartyUsage'
+        tag: '/DelegatedNetworkControllerTest'
+      }
+    ]
+    publicIPAddressVersion: 'IPv4'
+    publicIPAllocationMethod: 'Static'
   }
 }
 
@@ -320,8 +451,6 @@ resource cluster 'Microsoft.ContainerService/managedClusters@2024-02-01' = {
   }
 }
 
-
-
 resource cosmosdb 'Microsoft.DocumentDB/databaseAccounts@2022-05-15' = {
   name: cosmosdbName
   location: region
@@ -351,59 +480,6 @@ resource cosmosdb 'Microsoft.DocumentDB/databaseAccounts@2022-05-15' = {
     ]
   }
 }
-
-
-resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-07-31-preview' = {
-  name: 'helm-script-msi3'
-  location: region
-}
-
-module roleAssignments1 './roleAssignmentsInSub.bicep' = {
-  name: 'roleAssignmentsDeployment1'
-  scope: subscription() // Explicitly set the module scope to subscription
-  params: {
-    principalId: userAssignedIdentity.properties.principalId
-  }
-}
-
-resource storageFileDataPrivilegedContributor 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
-  name: '69566ab7-960f-475b-8e7c-b3118f30c6bd' // Storage File Data Privileged Contributor
-  scope: tenant()
-}
-
-resource dsStorage 'Microsoft.Storage/storageAccounts@2022-09-01' = {
-  name: 'dsstorage${uniqueString(resourceGroup().name)}'
-  location: region
-  kind: 'StorageV2'
-  sku: {
-    name: 'Standard_LRS'
-  }
-  properties: {
-    allowBlobPublicAccess: false
-  }
-}
-
-resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: dsStorage
-
-  name: guid(storageFileDataPrivilegedContributor.id, userAssignedIdentity.id, dsStorage.id)
-  properties: {
-    principalId: userAssignedIdentity.properties.principalId
-    roleDefinitionId: storageFileDataPrivilegedContributor.id
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource storageContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  scope: dsStorage
-  name: guid('17d1049b-9a84-46fb-8f53-869881c3d3ab', userAssignedIdentity.id, dsStorage.id)
-  properties: {
-    principalId: userAssignedIdentity.properties.principalId
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '17d1049b-9a84-46fb-8f53-869881c3d3ab') // Storage Account Contributor
-    principalType: 'ServicePrincipal'
-  }
-}
-
 module testResourcesModule './testResources.bicep' = {
   name: 'testResourcesDeployment'
   params: {
@@ -414,55 +490,7 @@ module testResourcesModule './testResources.bicep' = {
 output fqdn1 string = testResourcesModule.outputs.fqdn1
 output fqdn2 string = testResourcesModule.outputs.fqdn2
 
-param randomGuid string = newGuid()
 
-// Subnet delegation script
-resource ds 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
-  #disable-next-line use-stable-resource-identifiers
-  name: 'ds-subnetdelegator-${uniqueString(resourceGroup().name)}' 
-  kind: 'AzureCLI'
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${userAssignedIdentity.id}': {}
-    }
-  }
-  dependsOn: [
-    customerVnet
-    roleAssignment
-    storageContributor
-  ]
-  location: region
-  properties: {
-    storageAccountSettings: {storageAccountName: dsStorage.name}
-    containerSettings: {
-      subnetIds: [
-        {
-          id: infraVnet.properties.subnets[2].id
-        }
-      ]
-    }
-    azCliVersion: '2.69.0'
-    forceUpdateTag: randomGuid
-    retentionInterval: 'PT2H'
-    cleanupPreference: 'OnExpiration'
-    timeout: 'PT20M'
-    scriptContent: concat(
-      'curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/VirtualNetwork/%2Fsubscriptions%2F${subscription().subscriptionId}%2FresourceGroups%2F${resourceGroup().name}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${infraVnetName};',
-      'resp=$(curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/DelegatedSubnet/%2Fsubscriptions%2F${subscription().subscriptionId}%2FresourceGroups%2F${resourceGroup().name}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${customerVnetName}%2Fsubnets%2F${delegatedSubnetName});',
-      'token=$(echo "$resp" | grep -oP \'(?<=\\{).*?(?=\\})\' | sed -n \'s/.*"primaryToken":"\\([^"]*\\)".*/\\1/p\');',
-      'resp1=$(curl -X PUT ${privateEndpoint.properties.customDnsConfigs[0].ipAddresses[0]}:${subnetDelegator.properties.configuration.ingress.exposedPort}/DelegatedSubnet/%2Fsubscriptions%2F${subscription().subscriptionId}%2FresourceGroups%2F${resourceGroup().name}%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F${customerVnetName}%2Fsubnets%2F${delegatedSubnet1Name});',
-      'token1=$(echo "$resp1" | grep -oP \'(?<=\\{).*?(?=\\})\' | sed -n \'s/.*"primaryToken":"\\([^"]*\\)".*/\\1/p\');',
-      'echo "{\\"salToken\\":\\"$token\\",\\"salToken1\\":\\"$token1\\"}" > $AZ_SCRIPTS_OUTPUT_PATH;',
-      'cat $AZ_SCRIPTS_OUTPUT_PATH;'
-    )
-  }
-}
-
-
-// Outputs
-output salToken string = ds.properties.outputs.salToken
-output salToken1 string = ds.properties.outputs.salToken1
 
 // Execute script
 resource aksBYNOScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
@@ -487,7 +515,7 @@ resource aksBYNOScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
     cleanupPreference: 'OnExpiration'
     timeout: 'PT20M'
     primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/aksBYON.sh'
-    arguments: '-g ${rg} -c ${clusterName} -u ${subscriptionId}'
+    arguments: '-g ${resourceGroup().name} -c ${clusterName} -u ${subscription().subscriptionId}'
     supportingScriptUris: [
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/Chart.yaml'
       'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/values.yaml'
@@ -505,8 +533,6 @@ resource aksBYNOScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   //   'Az.Sec.DisableLocalAuth.Storage::Skip': 'Temporary bypass for deployment'
   // }
 }
-
-
 
 
 module dncVmssCreation 'vmssCreation.bicep' = {
@@ -589,36 +615,6 @@ resource installSwiftScript 'Microsoft.Resources/deploymentScripts@2020-10-01' =
 output privateIPs array = installSwiftScript.properties.outputs.privateIPs
 output subnetIds array = installSwiftScript.properties.outputs.subnetIDs
 
-
-
-// Cleanup script
-resource dsGc 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
-  #disable-next-line use-stable-resource-identifiers
-  name: 'ds-gc-${uniqueString(resourceGroup().name)}' 
-  kind: 'AzureCLI'
-  identity: {
-    type: 'UserAssigned'
-    userAssignedIdentities: {
-      '${userAssignedIdentity.id}': {}
-    }
-  }
-  dependsOn: [
-    ds
-    storageContributor
-  ]
-  location: region
-  properties: {
-    azCliVersion: '2.69.0'
-    forceUpdateTag: randomGuid
-    retentionInterval: 'PT2H'
-    cleanupPreference: 'Always'
-    timeout: 'PT20M'
-    scriptContent: concat(
-      'az account set -s ${subscription().subscriptionId};',
-      'az storage account delete --name ${dsStorage.name} -y;'
-    )
-  }
-}
 
 
 

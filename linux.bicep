@@ -17,6 +17,7 @@ param vnetrgname string
 param subnetname string = 'nodes'
 param extensionName string
 param aksClusterKubeletIdentityId string
+param msiRg string = 'RunnersIdentities'
 
 @description('Security Type of the Virtual Machine.')
 @allowed([
@@ -26,8 +27,9 @@ param aksClusterKubeletIdentityId string
 param securityType string = 'TrustedLaunch'
 
 resource aksbootstrapid 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  scope: resourceGroup(subscriptionId, resourceGroupName) 
-  name: 'helm-script-msi3'
+  scope: resourceGroup(subscriptionId, msiRg) 
+  // name: 'helm-script-msi3'
+  name: 'deploymentscript-msi'
 }
 
 resource vnet 'Microsoft.Network/virtualNetworks@2022-09-01' existing = {
