@@ -18,6 +18,11 @@ var containerGroup2 = {
   publicIPDNSName: 'container2${uniqueString(resourceGroup().id)}'
 }
 
+var containerGroupgc = {
+  publicIPName: 'containergcPublicIP'
+  publicIPDNSName: 'containergc${uniqueString(resourceGroup().id)}'
+}
+
 resource containerGroup1PublicIP 'Microsoft.Network/publicIPAddresses@2020-06-01' = {
   name: containerGroup1.publicIPName
   location: region
@@ -59,5 +64,26 @@ resource containerGroup2PublicIP 'Microsoft.Network/publicIPAddresses@2020-06-01
   }
 }
 
+resource containerGroupgcPublicIP 'Microsoft.Network/publicIPAddresses@2020-06-01' = {
+  name: containerGroupgc.publicIPName
+  location: region
+  sku: {
+    name: 'Standard'
+  }
+  properties: {
+    publicIPAllocationMethod: 'Static'
+    dnsSettings: {
+      domainNameLabel: containerGroupgc.publicIPDNSName
+    }
+    ipTags: [
+      {
+        ipTagType: ipTag
+        tag: ipTagValue
+      }
+    ]
+  }
+}
+
 output fqdn1 string = containerGroup1PublicIP.properties.dnsSettings.fqdn
 output fqdn2 string = containerGroup2PublicIP.properties.dnsSettings.fqdn
+output fqdngc string = containerGroupgcPublicIP.properties.dnsSettings.fqdn

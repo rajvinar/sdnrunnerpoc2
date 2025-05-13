@@ -405,7 +405,7 @@ resource cluster 'Microsoft.ContainerService/managedClusters@2024-02-01' = {
         name: 'dncpool0'
         osType: 'Linux'
         type: 'VirtualMachineScaleSets'
-        vmSize: 'Standard_D2_v2'
+        vmSize: 'Standard_D2ds_v4'
         vnetSubnetID: infraVnet.properties.subnets[0].id
       }
       {
@@ -420,7 +420,7 @@ resource cluster 'Microsoft.ContainerService/managedClusters@2024-02-01' = {
         }
         osType: 'Linux'
         type: 'VirtualMachineScaleSets'
-        vmSize: 'Standard_D2_v2'
+        vmSize: 'Standard_D2ds_v4'
         vnetSubnetID: infraVnet.properties.subnets[0].id
       }
     ]
@@ -489,6 +489,7 @@ module testResourcesModule './testResources.bicep' = {
 
 output fqdn1 string = testResourcesModule.outputs.fqdn1
 output fqdn2 string = testResourcesModule.outputs.fqdn2
+output fqdngc string = testResourcesModule.outputs.fqdngc
 
 
 
@@ -514,19 +515,20 @@ resource aksBYNOScript 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
     retentionInterval: 'PT2H'
     cleanupPreference: 'OnExpiration'
     timeout: 'PT20M'
-    primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/aksBYON.sh'
+    primaryScriptUri: 'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/aksBYON.sh'
     arguments: '-g ${resourceGroup().name} -c ${clusterName} -u ${subscription().subscriptionId}'
     supportingScriptUris: [
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/Chart.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/values.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/cni-plugins-installer.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/cns-unmanaged-windows.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/cns-unmanaged.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cni_daemonset.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cns_configmap.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_deployment.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cns_daemonset.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/bootstrap-role.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/Chart.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/values.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/cni-plugins-installer.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/cns-unmanaged-windows.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/cns-unmanaged.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/azure_cni_daemonset.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/azure_cns_configmap.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/dnc_deployment.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/azure_cns_daemonset.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/bootstrap-role.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/gccontainer.yaml'
     ]
   }
   // tags: {
@@ -586,24 +588,24 @@ resource installSwiftScript 'Microsoft.Resources/deploymentScripts@2020-10-01' =
     retentionInterval: 'PT2H'
     cleanupPreference: 'OnExpiration'
     timeout: 'PT30M'
-    primaryScriptUri: 'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/installSwift.sh'
+    primaryScriptUri: 'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/installSwift.sh'
     arguments: '-g ${rg} -c ${clusterName} -u ${subscriptionId} -v ${infraVnetName} -t "${ds.properties.outputs.salToken}|${ds.properties.outputs.salToken1}" -V ${customerVnet.properties.resourceGuid} -d ${cosmosdbName} -W ${join(workerVMSSNames, ',')} -D ${join(dncVMSSNames, ',')} -N ${customerVnetName}'
     supportingScriptUris: [
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/Chart.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/values.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/cni-plugins-installer.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/cns-unmanaged-windows.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/cns-unmanaged.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cni_daemonset.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cns_configmap.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_deployment.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/azure_cns_daemonset.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_configmap.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/test.sh'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/dnc_configmap_pubsubproxy.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/container1.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/container2.yaml'
-      'https://raw.githubusercontent.com/danlai-ms/dan-test/refs/heads/main/roleAssignmentsInSub.bicep'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/Chart.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/values.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/cni-plugins-installer.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/cns-unmanaged-windows.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/cns-unmanaged.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/azure_cni_daemonset.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/azure_cns_configmap.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/dnc_deployment.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/azure_cns_daemonset.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/dnc_configmap.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/test.sh'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/dnc_configmap_pubsubproxy.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/container1.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/container2.yaml'
+      'https://raw.githubusercontent.com/rajvinar/sdnrunnerpoc2/refs/heads/main/roleAssignmentsInSub.bicep'
     ]
   }
   // tags: {
